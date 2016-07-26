@@ -13,7 +13,7 @@
     "es6-promise": "^3.2.1",
     "jquery": "^2.2.0",
     "jquery-ui": "^1.10.5 <1.12",
-    "jupyter-js-services": "^0.16.0",
+    "jupyter-js-services": "^0.16.3",
     "leaflet": "^0.7.7",
     "marked": "^0.3.5",
     "moment": "^2.11.2",
@@ -31,11 +31,12 @@
     "phosphor-panel": "^1.0.0-rc.1",
     "phosphor-properties": "^2.0.0",
     "phosphor-signaling": "^1.2.0",
+    "phosphor-splitpanel": "^1.0.0-rc.1",
     "phosphor-tabs": "^1.0.0-rc.2",
     "phosphor-widget": "^1.0.0-rc.1",
     "sanitize-html": "^1.12.0",
     "simulate-event": "^1.2.0",
-    "xterm": "^0.33.0"
+    "xterm": "^1.0.0"
   },
   "devDependencies": {
     "concurrently": "^2.0.0",

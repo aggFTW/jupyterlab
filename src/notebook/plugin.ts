@@ -30,6 +30,10 @@ import {
 } from '../docregistry';
 
 import {
+  Inspector
+} from '../inspector';
+
+import {
   RenderMime
 } from '../rendermime';
 
@@ -114,8 +118,14 @@ let currentApp : Application;
  */
 export
 const notebookHandlerExtension = {
-  id: 'jupyter.extensions.notebookHandler',
-  requires: [DocumentRegistry, ServiceManager, RenderMime, IClipboard, MainMenu],
+  id: 'jupyter.extensions.notebook-handler',
+  requires: [
+    DocumentRegistry,
+    ServiceManager,
+    RenderMime, IClipboard,
+    MainMenu,
+    Inspector
+  ],
   activate: activateNotebookHandler
 };
 
@@ -125,7 +135,7 @@ const notebookHandlerExtension = {
  */
 export
 const notebookTrackerProvider = {
-  id: 'jupyter.plugins.notebookTracker',
+  id: 'jupyter.plugins.notebook-tracker',
   provides: NotebookTracker,
   resolve: () => {
     return Private.notebookTracker;
@@ -136,7 +146,7 @@ const notebookTrackerProvider = {
 /**
  * Activate the notebook handler extension.
  */
-function activateNotebookHandler(app: Application, registry: DocumentRegistry, services: ServiceManager, rendermime: RenderMime<Widget>, clipboard: IClipboard, mainMenu: MainMenu): void {
+function activateNotebookHandler(app: Application, registry: DocumentRegistry, services: ServiceManager, rendermime: RenderMime<Widget>, clipboard: IClipboard, mainMenu: MainMenu, inspector: Inspector): void {
 
   let widgetFactory = new NotebookWidgetFactory(rendermime, clipboard);
   let options: IWidgetFactoryOptions = {
@@ -182,11 +192,15 @@ function activateNotebookHandler(app: Application, registry: DocumentRegistry, s
     widget.title.icon = `${PORTRAIT_ICON_CLASS} ${NOTEBOOK_ICON_CLASS}`;
     tracker.addWidget(widget);
   });
+  // Set the source of the code inspector to the current console.
+  tracker.activeWidgetChanged.connect((sender: any, panel: NotebookPanel) => {
+    inspector.source = panel.content.inspectionHandler;
+  });
 
   // Add a MainMenu notebook item
   let notebookMenu = new MenuItem({
     text: 'Notebook',
-    submenu: makeNbMenu()
+    submenu: makeNbMenu(app)
   });
 
   let menuOptions = {
@@ -735,7 +749,7 @@ function activateNotebookHandler(app: Application, registry: DocumentRegistry, s
 /**
  * Creates a menu item for the notebook
  */
-function makeNbMenu() {
+function makeNbMenu(app: Application) {
   let settings = new Menu([
     new MenuItem({
       text: 'Toggle line numbers',
@@ -744,6 +758,12 @@ function makeNbMenu() {
   ]);
 
   let menu = new Menu([
+    new MenuItem({
+      text: 'New Notebook',
+      handler: () => {
+        app.commands.execute('file-operations:new-notebook');
+      }
+    }),
     new MenuItem({
       text: 'Undo',
       handler: undoHandler
