@@ -2,9 +2,10 @@
     "compilerOptions": {
         "noImplicitAny": true,
         "noEmitOnError": true,
-        "module": "commonjs",
+        "module": "amd",
         "moduleResolution": "node",
         "target": "ES5",
-        "outDir": "../build"
+        "outDir": "../build",
+        "declaration": true
     }
 }

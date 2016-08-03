@@ -4,7 +4,9 @@ module.exports = {
   output: {
     path: __dirname + '/build',
     filename: 'bundle.js',
-    publicPath: './build/'
+    publicPath: './build/',
+    library: 'jupyterlab',
+    libraryTarget: 'amd',
   },
   debug: true,
   devtool: 'inline-source-map',

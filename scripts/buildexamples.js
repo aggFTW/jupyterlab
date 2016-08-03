@@ -15,6 +15,9 @@ for (var i = 0; i < dirs.length; i++) {
   if (dirs[i].indexOf('node_modules') !== -1) {
     continue;
   }
+  if (dirs[i] !== 'notebook') {
+    continue;
+  }
   console.log('Building: ' + dirs[i] + '...');
   process.chdir('examples/' + dirs[i]);
   childProcess.execSync('npm run update', { stdio: [0, 1, 2] });
