@@ -7,7 +7,7 @@ import {
 } from 'jupyterlab/lib/notebook';
 
 import {
-  IServiceManager, createServiceManager
+  IServiceManager, createServiceManager, IAjaxSettings
 } from 'jupyter-js-services';
 
 import {
@@ -61,14 +61,17 @@ import 'jupyterlab/lib/notebook/completion/index.css';
 export class JupyterLab {
     public NOTEBOOK = 'test.ipynb';
     public div_id = "jupyter-notebook-wrapper";
+    public serviceManagerOptions:IServiceManager.IOptions = {};
 
-    constructor(div_id: string, notebook_name: string) {
+    constructor(div_id: string, notebook_name: string, ajaxSettings?: IAjaxSettings, baseUrl?: string) {
       this.div_id = div_id;
       this.NOTEBOOK = notebook_name;
+      this.serviceManagerOptions.ajaxSettings = ajaxSettings; 
+      this.serviceManagerOptions.baseUrl = baseUrl;
     }
 
-    public main(): void {
-      createServiceManager().then(manager => {
+    public embedJupyterLabUI(): void {
+      createServiceManager(this.serviceManagerOptions).then(manager => {
         this.createApp(manager);
       });
     }
