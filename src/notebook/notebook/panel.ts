@@ -6,24 +6,32 @@ import {
 } from 'jupyter-js-services';
 
 import {
+  Message
+} from 'phosphor/lib/core/messaging';
+
+import {
   MimeData as IClipboard
-} from 'phosphor-dragdrop';
+} from 'phosphor/lib/core/mimedata';
+
+import {
+  defineSignal, ISignal
+} from 'phosphor/lib/core/signaling';
+
+import {
+  Token
+} from 'phosphor/lib/core/token';
 
 import {
   Panel, PanelLayout
-} from 'phosphor-panel';
-
-import {
-  IChangedArgs
-} from 'phosphor-properties';
-
-import {
-  ISignal, Signal
-} from 'phosphor-signaling';
+} from 'phosphor/lib/ui/panel';
 
 import {
   Widget
-} from 'phosphor-widget';
+} from 'phosphor/lib/ui/widget';
+
+import {
+  IChangedArgs
+} from '../../common/interfaces';
 
 import {
   IDocumentContext, findKernel
@@ -83,26 +91,26 @@ class NotebookPanel extends Widget {
     this.addClass(NB_PANEL);
     this._rendermime = options.rendermime;
     this._clipboard = options.clipboard;
-    this._renderer = options.renderer || NotebookPanel.defaultRenderer;
+    this._renderer = options.renderer;
 
     this.layout = new PanelLayout();
     let rendermime = this._rendermime;
-    this._content = this._renderer.createContent({ rendermime });
+    this._content = this._renderer.createContent(rendermime);
     let toolbar = this._renderer.createToolbar();
 
     let container = new Panel();
     container.addClass(NB_CONTAINER);
-    container.addChild(this._content);
+    container.addWidget(this._content);
 
     let layout = this.layout as PanelLayout;
-    layout.addChild(toolbar);
-    layout.addChild(container);
+    layout.addWidget(toolbar);
+    layout.addWidget(container);
 
     this._completion = this._renderer.createCompletion();
     // The completion widget's anchor node is the node whose scrollTop is
     // pegged to the completion widget's position.
     this._completion.anchor = container.node;
-    this._completion.attach(document.body);
+    Widget.attach(this._completion, document.body);
 
     // Set up the completion handler.
     this._completionHandler = new CellCompletionHandler(this._completion);
@@ -115,16 +123,12 @@ class NotebookPanel extends Widget {
   /**
    * A signal emitted when the panel context changes.
    */
-  get contextChanged(): ISignal<NotebookPanel, void> {
-    return Private.contextChangedSignal.bind(this);
-  }
+  contextChanged: ISignal<NotebookPanel, void>;
 
   /**
    * A signal emitted when the kernel used by the panel changes.
    */
-  get kernelChanged(): ISignal<NotebookPanel, IKernel> {
-    return Private.kernelChangedSignal.bind(this);
-  }
+  kernelChanged: ISignal<NotebookPanel, IKernel>;
 
   /**
    * Get the toolbar used by the widget.
@@ -133,7 +137,7 @@ class NotebookPanel extends Widget {
    * This is a read-only property.
    */
   get toolbar(): NotebookToolbar {
-    return (this.layout as PanelLayout).childAt(0) as NotebookToolbar;
+    return (this.layout as PanelLayout).widgets.at(0) as NotebookToolbar;
   }
 
   /**
@@ -237,6 +241,20 @@ class NotebookPanel extends Widget {
   }
 
   /**
+   * Handle `'activate-request'` messages.
+   */
+  protected onActivateRequest(msg: Message): void {
+    this.content.activate();
+  }
+
+  /**
+   * Handle `'deactivate-request'` messages.
+   */
+  protected onDeactivateRequest(msg: Message): void {
+    this.content.deactivate();
+  }
+
+  /**
    * Handle a change to the document context.
    *
    * #### Notes
@@ -260,7 +278,7 @@ class NotebookPanel extends Widget {
    * Handle a change to the document path.
    */
   protected onPathChanged(sender: IDocumentContext<INotebookModel>, path: string): void {
-    this.title.text = path.split('/').pop();
+    this.title.label = path.split('/').pop();
   }
 
   /**
@@ -387,6 +405,11 @@ class NotebookPanel extends Widget {
 }
 
 
+// Define the signals for the `NotebookPanel` class.
+defineSignal(NotebookPanel.prototype, 'contextChanged');
+defineSignal(NotebookPanel.prototype, 'kernelChanged');
+
+
 /**
  * A namespace for `NotebookPanel` statics.
  */
@@ -411,7 +434,7 @@ export namespace NotebookPanel {
      *
      * The default is a shared `IRenderer` instance.
      */
-    renderer?: IRenderer;
+    renderer: IRenderer;
   }
 
   /**
@@ -422,7 +445,7 @@ export namespace NotebookPanel {
     /**
      * Create a new content area for the panel.
      */
-    createContent(options: Notebook.IOptions): Notebook;
+    createContent(rendermime: RenderMime): Notebook;
 
     /**
      * Create a new toolbar for the panel.
@@ -439,13 +462,11 @@ export namespace NotebookPanel {
    * The default implementation of an `IRenderer`.
    */
   export
-  class Renderer implements IRenderer {
+  abstract class Renderer implements IRenderer {
     /**
      * Create a new content area for the panel.
      */
-    createContent(options: Notebook.IOptions): Notebook {
-      return new Notebook(options);
-    }
+    abstract createContent(rendermime: RenderMime): Notebook;
 
     /**
      * Create a new toolbar for the panel.
@@ -463,27 +484,11 @@ export namespace NotebookPanel {
     }
   }
 
+  /* tslint:disable */
   /**
-   * The shared default instance of a `Renderer`.
-   */
-   export
-   const defaultRenderer = new Renderer();
-}
-
-
-/**
- * A namespace for private data.
- */
-namespace Private {
-  /**
-   * A signal emitted when the panel context changes.
+   * The notebook renderer token.
    */
   export
-  const contextChangedSignal = new Signal<NotebookPanel, void>();
-
-  /**
-   * A signal emitted when the kernel used by the panel changes.
-   */
-  export
-  const kernelChangedSignal = new Signal<NotebookPanel, IKernel>();
+  const IRenderer = new Token<IRenderer>('jupyter.services.notebook.renderer');
+  /* tslint:enable */
 }

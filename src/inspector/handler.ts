@@ -7,23 +7,19 @@ import {
 
 import {
   IDisposable
-} from 'phosphor-disposable';
+} from 'phosphor/lib/core/disposable';
 
 import {
-  ISignal, Signal, clearSignalData
-} from 'phosphor-signaling';
+  clearSignalData, defineSignal, ISignal
+} from 'phosphor/lib/core/signaling';
 
 import {
-  Widget
-} from 'phosphor-widget';
+  ICellEditorWidget, ITextChange
+} from '../notebook/cells/editor';
 
 import {
   BaseCellWidget
 } from '../notebook/cells/widget';
-
-import {
-  CellEditorWidget, ITextChange
-} from '../notebook/cells/editor';
 
 import {
   RenderMime
@@ -47,6 +43,21 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
   }
 
   /**
+   * A signal emitted when the handler is disposed.
+   */
+  disposed: ISignal<InspectionHandler, void>;
+
+  /**
+   * A signal emitted when inspector should clear all items with no history.
+   */
+  ephemeralCleared: ISignal<InspectionHandler, void>;
+
+  /**
+   * A signal emitted when an inspector value is generated.
+   */
+  inspected: ISignal<InspectionHandler, Inspector.IInspectorUpdate>;
+
+  /**
    * The cell widget used by the inspection handler.
    */
   get activeCell(): BaseCellWidget {
@@ -58,13 +69,15 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
     }
 
     if (this._activeCell && !this._activeCell.isDisposed) {
-      this._activeCell.editor.textChanged.disconnect(this.onTextChanged, this);
+      const editor = this._activeCell.editor;
+      editor.textChanged.disconnect(this.onTextChanged, this);
     }
     this._activeCell = newValue;
     if (this._activeCell) {
       // Clear ephemeral inspectors in preparation for a new editor.
-      this.clearEphemeral.emit(void 0);
-      this._activeCell.editor.textChanged.connect(this.onTextChanged, this);
+      this.ephemeralCleared.emit(void 0);
+      const editor = this._activeCell.editor;
+      editor.textChanged.connect(this.onTextChanged, this);
     }
   }
 
@@ -76,27 +89,6 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
   }
   set kernel(value: IKernel) {
     this._kernel = value;
-  }
-
-  /**
-   * A signal emitted when inspector should clear all items with no history.
-   */
-  get clearEphemeral(): ISignal<InspectionHandler, void> {
-    return Private.clearEphemeralSignal.bind(this);
-  }
-
-  /**
-   * A signal emitted when the handler is disposed.
-   */
-  get disposed(): ISignal<InspectionHandler, void> {
-    return Private.disposedSignal.bind(this);
-  }
-
-  /**
-   * A signal emitted when an inspector value is generated.
-   */
-  get inspected(): ISignal<InspectionHandler, Inspector.IInspectorUpdate> {
-    return Private.inspectedSignal.bind(this);
   }
 
   /**
@@ -159,7 +151,7 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
    * #### Notes
    * Update the hints inspector based on a text change.
    */
-  protected onTextChanged(editor: CellEditorWidget, change: ITextChange): void {
+  protected onTextChanged(editor: ICellEditorWidget, change: ITextChange): void {
     let update: Inspector.IInspectorUpdate = {
       content: null,
       type: 'hints'
@@ -214,25 +206,7 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
 }
 
 
-/**
- * A namespace for inspector handler private data.
- */
-namespace Private {
-  /**
-   * A signal emitted when inspector should clear all items with no history.
-   */
-  export
-  const clearEphemeralSignal = new Signal<InspectionHandler, void>();
-
-  /**
-   * A signal emitted when the handler is disposed.
-   */
-  export
-  const disposedSignal = new Signal<InspectionHandler, void>();
-
-  /**
-   * A signal emitted when an inspector value is generated.
-   */
-  export
-  const inspectedSignal = new Signal<InspectionHandler, Inspector.IInspectorUpdate>();
-}
+// Define the signals for the `FileBrowserModel` class.
+defineSignal(InspectionHandler.prototype, 'ephemeralCleared');
+defineSignal(InspectionHandler.prototype, 'disposed');
+defineSignal(InspectionHandler.prototype, 'inspected');

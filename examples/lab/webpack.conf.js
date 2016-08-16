@@ -10,14 +10,14 @@ module.exports = {
   output: {
     path: __dirname + '/build',
     filename: 'bundle.js',
-    publicPath: "lab/"
+    publicPath: 'lab/'
   },
   node: {
     fs: 'empty'
   },
   debug: true,
   bail: true,
-  devtool: 'inline-source-map',
+  devtool: 'source-map',
   module: {
     loaders: [
       { test: /\.css$/, loader: 'style-loader!css-loader' },

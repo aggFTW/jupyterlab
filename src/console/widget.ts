@@ -6,20 +6,28 @@ import {
 } from 'jupyter-js-services';
 
 import {
+  clearSignalData
+} from 'phosphor/lib/core/signaling';
+
+import {
+  Token
+} from 'phosphor/lib/core/token';
+
+import {
   Message
-} from 'phosphor-messaging';
+} from 'phosphor/lib/core/messaging';
+
+import {
+  scrollIntoViewIfNeeded
+} from 'phosphor/lib/dom/query';
 
 import {
   PanelLayout
-} from 'phosphor-panel';
-
-import {
-  clearSignalData
-} from 'phosphor-signaling';
+} from 'phosphor/lib/ui/panel';
 
 import {
   Widget
-} from 'phosphor-widget';
+} from 'phosphor/lib/ui/widget';
 
 import {
   InspectionHandler
@@ -27,14 +35,14 @@ import {
 
 import {
   nbformat
-} from '../notebook';
+} from '../notebook/notebook/nbformat';
 
 import {
-  CodeCellWidget, CodeCellModel, RawCellModel, RawCellWidget
+  CodeCellWidget, RawCellWidget
 } from '../notebook/cells';
 
 import {
-  EdgeLocation, CellEditorWidget
+  EdgeLocation, ICellEditorWidget
 } from '../notebook/cells/editor';
 
 import {
@@ -46,14 +54,12 @@ import {
 } from '../notebook/completion';
 
 import {
-  RenderMime
+  IRenderMime
 } from '../rendermime';
 
 import {
   ConsoleHistory, IConsoleHistory
 } from './history';
-
-
 
 
 /**
@@ -87,7 +93,7 @@ class ConsoleWidget extends Widget {
     let layout = new PanelLayout();
 
     this.layout = layout;
-    this._renderer = options.renderer || ConsoleWidget.defaultRenderer;
+    this._renderer = options.renderer;
     this._rendermime = options.rendermime;
     this._session = options.session;
 
@@ -104,7 +110,7 @@ class ConsoleWidget extends Widget {
 
     // Because a completion widget may be passed in, check if it is attached.
     if (!completion.isAttached) {
-      completion.attach(document.body);
+      Widget.attach(completion, document.body);
     }
 
     // Set up the completion handler.
@@ -120,7 +126,7 @@ class ConsoleWidget extends Widget {
     banner.addClass(BANNER_CLASS);
     banner.readOnly = true;
     banner.model.source = '...';
-    layout.addChild(banner);
+    layout.addWidget(banner);
 
     // Set the banner text and the mimetype.
     this.initialize();
@@ -155,8 +161,8 @@ class ConsoleWidget extends Widget {
    */
   get prompt(): CodeCellWidget {
     let layout = this.layout as PanelLayout;
-    let last = layout.childCount() - 1;
-    return last > 0 ? layout.childAt(last) as CodeCellWidget : null;
+    let last = layout.widgets.length - 1;
+    return last > 0 ? layout.widgets.at(last) as CodeCellWidget : null;
   }
 
   /**
@@ -215,6 +221,17 @@ class ConsoleWidget extends Widget {
         if (value.content.status === 'ok') {
           let content = value.content as KernelMessage.IExecuteOkReply;
           this._inspectionHandler.handleExecuteReply(content);
+          // Use deprecated payloads for backwards compatibility.
+          if (content.payload && content.payload.length) {
+            let setNextInput = content.payload.filter(i => {
+              return (i as any).source === 'set_next_input';
+            })[0];
+            if (setNextInput) {
+              let text = (setNextInput as any).text;
+              // Ignore the `replace` value and always set the next prompt.
+              this.prompt.model.source = text;
+            }
+          }
         }
         Private.scrollToBottom(this.node);
       },
@@ -245,58 +262,24 @@ class ConsoleWidget extends Widget {
   serialize(): nbformat.ICodeCell[] {
     let output: nbformat.ICodeCell[] = [];
     let layout = this.layout as PanelLayout;
-    for (let i = 1; i < layout.childCount(); i++) {
-      let widget = layout.childAt(i) as CodeCellWidget;
+    for (let i = 1; i < layout.widgets.length; i++) {
+      let widget = layout.widgets.at(i) as CodeCellWidget;
       output.push(widget.model.toJSON());
     }
     return output;
   }
 
   /**
-   * Handle the DOM events for the widget.
-   *
-   * @param event - The DOM event sent to the widget.
-   *
-   * #### Notes
-   * This method implements the DOM `EventListener` interface and is
-   * called in response to events on the dock panel's node. It should
-   * not be called directly by user code.
+   * Handle `'activate-request'` messages.
    */
-  handleEvent(event: Event): void {
-    switch (event.type) {
-    case 'click':
-      let prompt = this.prompt;
-      if (prompt) {
-        prompt.focus();
-      }
-      break;
-    default:
-      break;
-    }
-  }
-
-  /**
-   * Handle `after_attach` messages for the widget.
-   */
-  protected onAfterAttach(msg: Message): void {
-    this.node.addEventListener('click', this);
-    let prompt = this.prompt;
-    if (prompt) {
-      prompt.focus();
-    }
-  }
-
-  /**
-   * Handle `before_detach` messages for the widget.
-   */
-  protected onBeforeDetach(msg: Message): void {
-    this.node.removeEventListener('click', this);
+  protected onActivateRequest(msg: Message): void {
+    this.prompt.activate();
   }
 
   /**
    * Handle an edge requested signal.
    */
-  protected onEdgeRequest(editor: CellEditorWidget, location: EdgeLocation): void {
+  protected onEdgeRequest(editor: ICellEditorWidget, location: EdgeLocation): void {
     let prompt = this.prompt;
     if (location === 'top') {
       this._history.back().then(value => {
@@ -321,7 +304,7 @@ class ConsoleWidget extends Widget {
    */
   protected onUpdateRequest(msg: Message): void {
     let prompt = this.prompt;
-    Private.scrollIfNeeded(this.parent.node, prompt.node);
+    scrollIntoViewIfNeeded(this.parent.node, prompt.node);
   }
 
   /**
@@ -354,7 +337,7 @@ class ConsoleWidget extends Widget {
     prompt = this._renderer.createPrompt(this._rendermime);
     prompt.mimetype = this._mimetype;
     prompt.addClass(PROMPT_CLASS);
-    layout.addChild(prompt);
+    layout.addWidget(prompt);
 
     // Hook up completion and history handling.
     let editor = prompt.editor;
@@ -366,8 +349,7 @@ class ConsoleWidget extends Widget {
 
     // Jump to the bottom of the console.
     Private.scrollToBottom(this.node);
-
-    prompt.focus();
+    prompt.activate();
   }
 
   /**
@@ -375,7 +357,7 @@ class ConsoleWidget extends Widget {
    */
   private _handleInfo(info: KernelMessage.IInfoReply): void {
     let layout = this.layout as PanelLayout;
-    let banner = layout.childAt(0) as RawCellWidget;
+    let banner = layout.widgets.at(0) as RawCellWidget;
     banner.model.source = info.banner;
     this._mimetype = mimetypeForLanguage(info.language_info);
     this.prompt.mimetype = this._mimetype;
@@ -385,7 +367,7 @@ class ConsoleWidget extends Widget {
   private _completionHandler: CellCompletionHandler = null;
   private _inspectionHandler: InspectionHandler = null;
   private _mimetype = 'text/x-ipython';
-  private _rendermime: RenderMime = null;
+  private _rendermime: IRenderMime = null;
   private _renderer: ConsoleWidget.IRenderer = null;
   private _history: IConsoleHistory = null;
   private _session: ISession = null;
@@ -409,12 +391,12 @@ namespace ConsoleWidget {
     /**
      * The mime renderer for the console widget.
      */
-    rendermime: RenderMime;
+    rendermime: IRenderMime;
 
     /**
      * The renderer for a console widget.
      */
-    renderer?: IRenderer;
+    renderer: IRenderer;
 
     /**
      * The session for the console widget.
@@ -435,39 +417,16 @@ namespace ConsoleWidget {
     /**
      * Create a new prompt widget.
      */
-    createPrompt(rendermime: RenderMime): CodeCellWidget;
+    createPrompt(rendermime: IRenderMime): CodeCellWidget;
   }
 
+  /* tslint:disable */
   /**
-   * The default implementation of an `IRenderer`.
+   * The console renderer token.
    */
   export
-  class Renderer implements IRenderer {
-    /**
-     * Create a new banner widget.
-     */
-    createBanner(): RawCellWidget {
-      let widget = new RawCellWidget();
-      widget.model = new RawCellModel();
-      return widget;
-    }
-
-    /**
-     * Create a new prompt widget.
-     */
-    createPrompt(rendermime: RenderMime): CodeCellWidget {
-      let widget = new CodeCellWidget({ rendermime });
-      widget.model = new CodeCellModel();
-      return widget;
-    }
-  }
-
-
-  /**
-   * The default `IRenderer` instance.
-   */
-  export
-  const defaultRenderer = new Renderer();
+  const IRenderer = new Token<IRenderer>('jupyter.services.console.renderer');
+  /* tslint:enable */
 }
 
 
@@ -475,24 +434,6 @@ namespace ConsoleWidget {
  * A namespace for console widget private data.
  */
 namespace Private {
-  /**
-   * Scroll an element into view if needed.
-   *
-   * @param area - The scroll area element.
-   *
-   * @param elem - The element of interest.
-   */
-  export
-  function scrollIfNeeded(area: HTMLElement, elem: HTMLElement): void {
-    let ar = area.getBoundingClientRect();
-    let er = elem.getBoundingClientRect();
-    if (er.top < ar.top - 10) {
-      area.scrollTop -= ar.top - er.top + 10;
-    } else if (er.bottom > ar.bottom + 10) {
-      area.scrollTop += er.bottom - ar.bottom + 10;
-    }
-  }
-
   /**
    * Jump to the bottom of a node.
    *

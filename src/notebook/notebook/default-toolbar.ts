@@ -7,11 +7,15 @@ import {
 
 import {
   Widget
-} from 'phosphor-widget';
+} from 'phosphor/lib/ui/widget';
 
 import {
   restartKernel
 } from '../../docregistry';
+
+import {
+  NotebookActions
+} from './actions';
 
 import {
   nbformat
@@ -22,16 +26,12 @@ import {
 } from './panel';
 
 import {
-  Notebook
-} from './widget';
-
-import {
   ToolbarButton
 } from './toolbar';
 
 import {
-  NotebookActions
-} from './actions';
+  Notebook
+} from './widget';
 
 
 /**
@@ -112,8 +112,12 @@ namespace ToolbarItems {
   function createSaveButton(panel: NotebookPanel): ToolbarButton {
     return new ToolbarButton({
       className: TOOLBAR_SAVE,
-      onClick: () => { panel.context.save();  },
-      tooltip: 'Save the notebook contents'
+      onClick: () => {
+        panel.context.save().then(() => {
+          return panel.context.createCheckpoint();
+        });
+      },
+      tooltip: 'Save the notebook contents and create checkpoint'
     });
   }
 
@@ -307,27 +311,10 @@ namespace ToolbarItems {
  */
 class CellTypeSwitcher extends Widget {
   /**
-   * Create the node for the cell type switcher.
-   */
-  static createNode(): HTMLElement {
-    let div = document.createElement('div');
-    let select = document.createElement('select');
-    for (let t of ['Code', 'Markdown', 'Raw']) {
-      let option = document.createElement('option');
-      option.value = t.toLowerCase();
-      option.textContent = t;
-      select.appendChild(option);
-    }
-    select.className = TOOLBAR_CELLTYPE_DROPDOWN;
-    div.appendChild(select);
-    return div;
-  }
-
-  /**
    * Construct a new cell type switcher.
    */
   constructor(widget: Notebook) {
-    super();
+    super({ node: createCellTypeSwitcherNode() });
     this.addClass(TOOLBAR_CELLTYPE);
 
     let select = this.node.firstChild as HTMLSelectElement;
@@ -394,6 +381,24 @@ class CellTypeSwitcher extends Widget {
 
 
 /**
+ * Create the node for the cell type switcher.
+ */
+function createCellTypeSwitcherNode(): HTMLElement {
+  let div = document.createElement('div');
+  let select = document.createElement('select');
+  for (let t of ['Code', 'Markdown', 'Raw']) {
+    let option = document.createElement('option');
+    option.value = t.toLowerCase();
+    option.textContent = t;
+    select.appendChild(option);
+  }
+  select.className = TOOLBAR_CELLTYPE_DROPDOWN;
+  div.appendChild(select);
+  return div;
+}
+
+
+/**
  * A toolbar item that displays kernel status.
  */
 class KernelIndicator extends Widget {
@@ -411,8 +416,13 @@ class KernelIndicator extends Widget {
       this.node.title = 'No Kernel!';
     }
     panel.kernelChanged.connect((c, kernel) => {
-      this._handleStatus(kernel, kernel.status);
-      kernel.statusChanged.connect(this._handleStatus, this);
+      if (kernel) {
+        this._handleStatus(kernel, kernel.status);
+        kernel.statusChanged.connect(this._handleStatus, this);
+      } else {
+        this.node.title = 'No Kernel!';
+        this.addClass(TOOLBAR_BUSY);
+      }
     });
   }
 
@@ -420,6 +430,9 @@ class KernelIndicator extends Widget {
    * Handle a status on a kernel.
    */
   private _handleStatus(kernel: IKernel, status: IKernel.Status) {
+    if (this.isDisposed) {
+      return;
+    }
     this.toggleClass(TOOLBAR_BUSY, status !== 'idle');
     let title = 'Kernel ' + status[0].toUpperCase() + status.slice(1);
     this.node.title = title;

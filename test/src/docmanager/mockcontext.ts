@@ -11,15 +11,15 @@ import {
 
 import {
   IDisposable
-} from 'phosphor-disposable';
+} from 'phosphor/lib/core/disposable';
 
 import {
-  ISignal, Signal
-} from 'phosphor-signaling';
+  defineSignal, ISignal
+} from 'phosphor/lib/core/signaling';
 
 import {
   Widget
-} from 'phosphor-widget';
+} from 'phosphor/lib/ui/widget';
 
 import {
   IDocumentContext, IDocumentModel
@@ -35,21 +35,15 @@ class MockContext<T extends IDocumentModel> implements IDocumentContext<T> {
     this._model = model;
   }
 
-  get kernelChanged(): ISignal<IDocumentContext<IDocumentModel>, IKernel> {
-    return Private.kernelChangedSignal.bind(this);
-  }
+  kernelChanged: ISignal<IDocumentContext<IDocumentModel>, IKernel>;
 
-  get pathChanged(): ISignal<IDocumentContext<IDocumentModel>, string> {
-    return Private.pathChangedSignal.bind(this);
-  }
+  pathChanged: ISignal<IDocumentContext<IDocumentModel>, string>;
 
-  get contentsModelChanged(): ISignal<IDocumentContext<T>, IContents.IModel> {
-    return Private.contentsModelChanged.bind(this);
-  }
+  contentsModelChanged: ISignal<IDocumentContext<T>, IContents.IModel>;
 
-  get populated(): ISignal<IDocumentContext<IDocumentModel>, void> {
-    return Private.populatedSignal.bind(this);
-  }
+  populated: ISignal<IDocumentContext<IDocumentModel>, void>;
+
+  disposed: ISignal<IDocumentContext<T>, void>;
 
   get id(): string {
     return '';
@@ -90,7 +84,11 @@ class MockContext<T extends IDocumentModel> implements IDocumentContext<T> {
   }
 
   changeKernel(options: IKernel.IModel): Promise<IKernel> {
-    this._kernel = new MockKernel(options);
+    if (!options) {
+      this._kernel = null;
+    } else {
+      this._kernel = new MockKernel(options);
+    }
     this.kernelChanged.emit(this._kernel);
     this.methods.push('changeKernel');
     return Promise.resolve(this._kernel);
@@ -113,6 +111,22 @@ class MockContext<T extends IDocumentModel> implements IDocumentContext<T> {
     return Promise.resolve(void 0);
   }
 
+  createCheckpoint(): Promise<IContents.ICheckpointModel> {
+    return Promise.resolve(void 0);
+  }
+
+  deleteCheckpoint(checkpointID: string): Promise<void> {
+    return Promise.resolve(void 0);
+  }
+
+  restoreCheckpoint(checkpointID?: string): Promise<void> {
+    return Promise.resolve(void 0);
+  }
+
+  listCheckpoints(): Promise<IContents.ICheckpointModel[]> {
+    return Promise.resolve([]);
+  }
+
   listSessions(): Promise<ISession.IModel[]> {
     this.methods.push('listSessions');
     return Promise.resolve([] as ISession.IModel[]);
@@ -133,31 +147,8 @@ class MockContext<T extends IDocumentModel> implements IDocumentContext<T> {
 }
 
 
-/**
- * A namespace for private data.
- */
-namespace Private {
-  /**
-   * A signal emitted when the kernel changes.
-   */
-  export
-  const kernelChangedSignal = new Signal<IDocumentContext<IDocumentModel>, IKernel>();
-
-  /**
-   * A signal emitted when the path changes.
-   */
-  export
-  const pathChangedSignal = new Signal<IDocumentContext<IDocumentModel>, string>();
-
-  /**
-   * A signal emitted when the context is fully populated for the first time.
-   */
-  export
-  const populatedSignal = new Signal<IDocumentContext<IDocumentModel>, void>();
-
-  /**
-   * A signal emitted when the contentsModel changes.
-   */
-  export
-  const contentsModelChanged = new Signal<IDocumentContext<IDocumentModel>, IContents.IModel>();
-}
+defineSignal(MockContext.prototype, 'kernelChanged');
+defineSignal(MockContext.prototype, 'pathChanged');
+defineSignal(MockContext.prototype, 'contentsModelChanged');
+defineSignal(MockContext.prototype, 'populated');
+defineSignal(MockContext.prototype, 'disposed');

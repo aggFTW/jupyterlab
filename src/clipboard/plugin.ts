@@ -2,18 +2,24 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  MimeData as IClipboard
-} from 'phosphor-dragdrop';
+  MimeData
+} from 'phosphor/lib/core/mimedata';
+
+import {
+  JupyterLabPlugin
+} from '../application';
+
+import {
+  IClipboard
+} from './';
 
 
 /**
  * The clipboard provider.
  */
 export
-const clipboardProvider = {
+const clipboardProvider: JupyterLabPlugin<IClipboard> = {
   id: 'jupyter.services.clipboard',
   provides: IClipboard,
-  resolve: () => {
-    return new IClipboard();
-  }
+  activate: (): IClipboard => new MimeData()
 };

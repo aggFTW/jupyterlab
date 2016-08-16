@@ -11,6 +11,14 @@ import {
 } from 'jupyter-js-services';
 
 import {
+  Token
+} from 'phosphor/lib/core/token';
+
+import {
+  FocusTracker
+} from 'phosphor/lib/ui/focustracker';
+
+import {
   loadModeByFileName
 } from '../codemirror';
 
@@ -22,9 +30,6 @@ import {
   ABCWidgetFactory, IDocumentModel, IDocumentContext
 } from '../docregistry';
 
-import {
-  tracker
-} from './plugin';
 
 /**
  * The class name added to a dirty widget.
@@ -38,6 +43,22 @@ const EDITOR_CLASS = 'jp-EditorWidget';
 
 
 /**
+ * A class that tracks editor widgets.
+ */
+export
+interface IEditorTracker extends FocusTracker<EditorWidget> {}
+
+
+/* tslint:disable */
+/**
+ * The editor tracker token.
+ */
+export
+const IEditorTracker = new Token<IEditorTracker>('jupyter.services.editor-tracker');
+/* tslint:enable */
+
+
+/**
  * A document widget for codemirrors.
  */
 export
@@ -47,14 +68,13 @@ class EditorWidget extends CodeMirrorWidget {
    */
   constructor(context: IDocumentContext<IDocumentModel>) {
     super();
-    tracker.addWidget(this);
     this.addClass(EDITOR_CLASS);
     let editor = this.editor;
     let model = context.model;
     editor.setOption('lineNumbers', true);
     let doc = editor.getDoc();
     doc.setValue(model.toString());
-    this.title.text = context.path.split('/').pop();
+    this.title.label = context.path.split('/').pop();
     loadModeByFileName(editor, context.path);
     model.stateChanged.connect((m, args) => {
       if (args.name === 'dirty') {
@@ -67,7 +87,7 @@ class EditorWidget extends CodeMirrorWidget {
     });
     context.pathChanged.connect((c, path) => {
       loadModeByFileName(editor, path);
-      this.title.text = path.split('/').pop();
+      this.title.label = path.split('/').pop();
     });
     model.contentChanged.connect(() => {
       let old = doc.getValue();

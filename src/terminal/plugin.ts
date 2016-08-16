@@ -2,38 +2,51 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  ServiceManager
-} from 'jupyter-js-services';
+  each
+} from 'phosphor/lib/algorithm/iteration';
 
 import {
-  Application
-} from 'phosphide/lib/core/application';
+  find
+} from 'phosphor/lib/algorithm/searching';
 
 import {
-  WidgetTracker
-} from '../widgettracker';
+  FocusTracker
+} from 'phosphor/lib/ui/focustracker';
+
+import {
+  Menu
+} from 'phosphor/lib/ui/menu';
+
+import {
+  JupyterLab, JupyterLabPlugin
+} from '../application';
+
+import {
+  ICommandPalette
+} from '../commandpalette';
+
+import {
+  IMainMenu
+} from '../mainmenu';
+
+import {
+  IServiceManager
+} from '../services';
 
 import {
   TerminalWidget
 } from './index';
-
-import {
-  MainMenu
-} from '../mainmenu/plugin';
-
-import {
-  MenuItem, Menu
-} from 'phosphor-menus';
 
 
 /**
  * The default terminal extension.
  */
 export
-const terminalExtension = {
+const terminalExtension: JupyterLabPlugin<void> = {
   id: 'jupyter.extensions.terminal',
-  requires: [ServiceManager, MainMenu],
-  activate: activateTerminal
+  requires: [IServiceManager, IMainMenu, ICommandPalette],
+  activate: activateTerminal,
+  autoStart: true
 };
 
 /**
@@ -47,125 +60,65 @@ const LANDSCAPE_ICON_CLASS = 'jp-MainAreaLandscapeIcon';
 const TERMINAL_ICON_CLASS = 'jp-ImageTerminal';
 
 
-function activateTerminal(app: Application, services: ServiceManager, mainMenu: MainMenu): void {
+function activateTerminal(app: JupyterLab, services: IServiceManager, mainMenu: IMainMenu, palette: ICommandPalette): void {
 
+  let { commands, keymap } = app;
   let newTerminalId = 'terminal:create-new';
   let increaseTerminalFontSize = 'terminal:increase-font';
   let decreaseTerminalFontSize = 'terminal:decrease-font';
   let toggleTerminalTheme = 'terminal:toggle-theme';
-  let closeAllTerminals = 'terminal:close-all-terminals';
-  let tracker = new WidgetTracker<TerminalWidget>();
+  let openTerminalId = 'terminal:open';
+
+  let tracker = new FocusTracker<TerminalWidget>();
   let options = {
     background: 'black',
     color: 'white',
     fontSize: 14
   };
 
-  app.commands.add([
-    {
-      id: newTerminalId,
-      handler: () => {
-        let term = new TerminalWidget(options);
-        term.title.closable = true;
-        term.title.icon = `${LANDSCAPE_ICON_CLASS} ${TERMINAL_ICON_CLASS}`;
-        app.shell.addToMainArea(term);
-        tracker.addWidget(term);
-        services.terminals.create().then(session => {
-          term.session = session;
-          // Trigger an update of the running kernels.
-          services.terminals.listRunning();
+  commands.addCommand(newTerminalId, {
+    label: 'New Terminal',
+    caption: 'Start a new terminal session',
+    execute: args => {
+      let name = args ? args['name'] as string : '';
+      let term = new TerminalWidget(options);
+      term.title.closable = true;
+      term.title.icon = `${LANDSCAPE_ICON_CLASS} ${TERMINAL_ICON_CLASS}`;
+      app.shell.addToMainArea(term);
+      tracker.add(term);
+      services.terminals.create({ name }).then(session => {
+        term.session = session;
+        // Trigger an update of the running kernels.
+        services.terminals.listRunning();
+      });
+    }
+  });
+  commands.addCommand(increaseTerminalFontSize, {
+    label: 'Increase Terminal Font Size',
+    execute: () => {
+      if (options.fontSize < 72) {
+        options.fontSize++;
+        each(tracker.widgets, widget => {
+          widget.fontSize = options.fontSize;
         });
       }
-    },
-    {
-      id: increaseTerminalFontSize,
-      handler: increaseFont
-    },
-    {
-      id: decreaseTerminalFontSize,
-      handler: decreaseFont
-    },
-    {
-      id: toggleTerminalTheme,
-      handler: toggleTheme
     }
-  ]);
-  app.palette.add([
-    {
-      command: newTerminalId,
-      category: 'Terminal',
-      text: 'New Terminal',
-      caption: 'Start a new terminal session'
-    },
-    {
-      command: increaseTerminalFontSize,
-      category: 'Terminal',
-      text: 'Increase Terminal Font Size',
-    },
-    {
-      command: decreaseTerminalFontSize,
-      category: 'Terminal',
-      text: 'Decrease Terminal Font Size',
-    },
-    {
-      command: toggleTerminalTheme,
-      category: 'Terminal',
-      text: 'Toggle Terminal Theme',
-      caption: 'Switch Terminal Background and Font Colors'
-    }
-  ]);
-
-  let menu = new Menu([
-    new MenuItem({
-      text: 'New Terminal',
-      handler: () => {
-        app.commands.execute(newTerminalId);
-      }
-    }),
-    new MenuItem({
-      text: 'Increase Font Size',
-      handler: increaseFont
-    }),
-    new MenuItem({
-      text: 'Decrease Font Size',
-      handler: decreaseFont
-    }),
-    new MenuItem({
-      text: 'Toggle Theme',
-      handler: toggleTheme
-    })
-  ]);
-
-  let terminalMenu = new MenuItem ({
-    text: 'Terminal',
-    submenu: menu
   });
-
-  mainMenu.addItem(terminalMenu, {rank: 40});
-
-  function increaseFont(): void {
-    if (!tracker.isDisposed && options.fontSize < 72) {
-      let widgets = tracker.widgets;
-      options.fontSize++;
-      for (let i = 0; i < widgets.length; i++) {
-        widgets[i].fontSize = options.fontSize;
+  commands.addCommand(decreaseTerminalFontSize, {
+    label: 'Decrease Terminal Font Size',
+    execute: () => {
+      if (options.fontSize > 9) {
+        options.fontSize--;
+        each(tracker.widgets, widget => {
+          widget.fontSize = options.fontSize;
+        });
       }
     }
-  }
-
-  function decreaseFont(): void {
-    if (!tracker.isDisposed && options.fontSize > 9) {
-      let widgets = tracker.widgets;
-      options.fontSize--;
-      for (let i = 0; i < widgets.length; i++) {
-        widgets[i].fontSize = options.fontSize;
-      }
-    }
-  }
-
-  function toggleTheme(): void {
-    if (!tracker.isDisposed) {
-      let widgets = tracker.widgets;
+  });
+  commands.addCommand(toggleTerminalTheme, {
+    label: 'Toggle Terminal Theme',
+    caption: 'Switch Terminal Background and Font Colors',
+    execute: () => {
       if (options.background === 'black') {
         options.background = 'white';
         options.color = 'black';
@@ -173,10 +126,40 @@ function activateTerminal(app: Application, services: ServiceManager, mainMenu: 
         options.background = 'black';
         options.color = 'white';
       }
-      for (let i = 0; i < widgets.length; i++) {
-        widgets[i].background = options.background;
-        widgets[i].color = options.color;
+      each(tracker.widgets, widget => {
+        widget.background = options.background;
+        widget.color = options.color;
+      });
+    }
+  });
+  commands.addCommand(openTerminalId, {
+    execute: args => {
+      let name = args['name'] as string;
+      // Check for a running terminal with the given name.
+      let widget = find(tracker.widgets, value => value.session.name === name);
+      if (widget) {
+        app.shell.activateMain(widget.id);
+      } else {
+        // Otherwise, create a new terminal with a given name.
+        commands.execute(newTerminalId, { name });
       }
     }
-  }
+  });
+
+  let category = 'Terminal';
+  [
+    newTerminalId,
+    increaseTerminalFontSize,
+    decreaseTerminalFontSize,
+    toggleTerminalTheme
+  ].forEach(command => palette.addItem({ command, category }));
+
+  let menu = new Menu({ commands, keymap });
+  menu.title.label = 'Terminal';
+  menu.addItem({ command: newTerminalId });
+  menu.addItem({ command: increaseTerminalFontSize });
+  menu.addItem({ command: decreaseTerminalFontSize });
+  menu.addItem({ command: toggleTerminalTheme });
+
+  mainMenu.addMenu(menu, {rank: 40});
 }

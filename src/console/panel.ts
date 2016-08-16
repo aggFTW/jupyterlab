@@ -7,18 +7,18 @@ import {
 
 import {
   Message
-} from 'phosphor-messaging';
+} from 'phosphor/lib/core/messaging';
 
 import {
   Panel
-} from 'phosphor-panel';
+} from 'phosphor/lib/ui/panel';
 
 import {
   showDialog
 } from '../dialog';
 
 import {
-  RenderMime
+  IRenderMime
 } from '../rendermime';
 
 import {
@@ -47,9 +47,10 @@ class ConsolePanel extends Panel {
     // Create console widget.
     this._console = options.console || new ConsoleWidget({
       session: options.session,
-      rendermime: options.rendermime
+      rendermime: options.rendermime,
+      renderer: options.renderer
     });
-    this.addChild(this._console);
+    this.addWidget(this._console);
   }
 
   /**
@@ -75,6 +76,13 @@ class ConsolePanel extends Panel {
     this._console = null;
 
     super.dispose();
+  }
+
+  /**
+   * Handle `'activate-request'` messages.
+   */
+  protected onActivateRequest(msg: Message): void {
+    this.content.activate();
   }
 
   /**
@@ -128,7 +136,12 @@ namespace ConsolePanel {
     /**
      * The mime renderer for the console panel.
      */
-    rendermime: RenderMime;
+    rendermime: IRenderMime;
+
+    /**
+     * The renderer for a console widget.
+     */
+    renderer?: ConsoleWidget.IRenderer;
 
     /**
      * The session for the console panel.

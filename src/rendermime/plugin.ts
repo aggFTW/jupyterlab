@@ -2,8 +2,8 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  RenderMime
-} from './index';
+  JupyterLabPlugin
+} from '../application';
 
 import {
   HTMLRenderer, LatexRenderer, ImageRenderer, TextRenderer,
@@ -14,16 +14,20 @@ import {
   defaultSanitizer
 } from '../sanitizer';
 
+import {
+  IRenderMime, RenderMime
+} from './';
 
 
 /**
  * The default rendermime provider.
  */
 export
-const renderMimeProvider = {
+const renderMimeProvider: JupyterLabPlugin<IRenderMime> = {
   id: 'jupyter.services.rendermime',
-  provides: RenderMime,
-  resolve: () => {
+  provides: IRenderMime,
+  activate: (): IRenderMime => {
+    let sanitizer = defaultSanitizer;
     const transformers = [
       new JavascriptRenderer(),
       new MarkdownRenderer(),
@@ -41,6 +45,6 @@ const renderMimeProvider = {
         order.push(m);
       }
     }
-    return new RenderMime({ renderers, order, sanitizer: defaultSanitizer });
+    return new RenderMime({ renderers, order, sanitizer });
   }
 };

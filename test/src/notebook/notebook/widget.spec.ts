@@ -4,12 +4,16 @@
 import expect = require('expect.js');
 
 import {
-  Message
-} from 'phosphor-messaging';
+  sendMessage, Message
+} from 'phosphor/lib/core/messaging';
+
+import {
+  Widget, WidgetMessage
+} from 'phosphor/lib/ui/widget';
 
 import {
   IChangedArgs
-} from 'phosphor-properties';
+} from '../../../../lib/common/interfaces';
 
 import {
   simulate
@@ -36,13 +40,18 @@ import {
   DEFAULT_CONTENT
 } from '../utils';
 
+import {
+  CodeMirrorNotebookRenderer
+} from '../../../../lib/notebook/codemirror/notebook/widget';
+
 
 const rendermime = defaultRenderMime();
+const renderer = CodeMirrorNotebookRenderer.defaultRenderer;
 
 
 function createWidget(): LogStaticNotebook {
   let model = new NotebookModel();
-  let widget = new LogStaticNotebook({ rendermime });
+  let widget = new LogStaticNotebook({ rendermime, renderer });
   widget.model = model;
   return widget;
 }
@@ -105,6 +114,16 @@ class LogNotebook extends Notebook {
     this.methods.push('onBeforeDetach');
   }
 
+  protected onActivateRequest(msg: Message): void {
+    super.onActivateRequest(msg);
+    this.methods.push('onActivateRequest');
+  }
+
+  protected onDeactivateRequest(msg: Message): void {
+    super.onDeactivateRequest(msg);
+    this.methods.push('onDeactivateRequest');
+  }
+
   protected onUpdateRequest(msg: Message): void {
     super.onUpdateRequest(msg);
     this.methods.push('onUpdateRequest');
@@ -129,7 +148,7 @@ class LogNotebook extends Notebook {
 
 function createActiveWidget(): LogNotebook {
   let model = new NotebookModel();
-  let widget = new LogNotebook({ rendermime });
+  let widget = new LogNotebook({ rendermime, renderer });
   widget.model = model;
   return widget;
 }
@@ -142,17 +161,17 @@ describe('notebook/notebook/widget', () => {
     describe('#constructor()', () => {
 
       it('should create a notebook widget', () => {
-        let widget = new StaticNotebook({ rendermime });
+        let widget = new StaticNotebook({ rendermime, renderer });
         expect(widget).to.be.a(StaticNotebook);
       });
 
       it('should add the `jp-Notebook` class', () => {
-        let widget = new StaticNotebook({ rendermime });
+        let widget = new StaticNotebook({ rendermime, renderer });
         expect(widget.hasClass('jp-Notebook')).to.be(true);
       });
 
       it('should accept an optional render', () => {
-        let renderer = new StaticNotebook.Renderer();
+        let renderer = new CodeMirrorNotebookRenderer();
         let widget = new StaticNotebook({ rendermime, renderer });
         expect(widget.renderer).to.be(renderer);
       });
@@ -162,7 +181,7 @@ describe('notebook/notebook/widget', () => {
     describe('#modelChanged', () => {
 
       it('should be emitted when the model changes', () => {
-        let widget = new StaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new StaticNotebook({ rendermime: defaultRenderMime(), renderer });
         let model = new NotebookModel();
         let called = false;
         widget.modelChanged.connect((sender, args) => {
@@ -179,7 +198,7 @@ describe('notebook/notebook/widget', () => {
     describe('#modelContentChanged', () => {
 
       it('should be emitted when a cell is added', () => {
-        let widget = new StaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new StaticNotebook({ rendermime: defaultRenderMime(), renderer });
         widget.model = new NotebookModel();
         let called = false;
         widget.modelContentChanged.connect(() => { called = true; });
@@ -189,7 +208,7 @@ describe('notebook/notebook/widget', () => {
       });
 
       it('should be emitted when metadata is set', () => {
-        let widget = new StaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new StaticNotebook({ rendermime: defaultRenderMime(), renderer });
         widget.model = new NotebookModel();
         let called = false;
         widget.modelContentChanged.connect(() => { called = true; });
@@ -203,19 +222,19 @@ describe('notebook/notebook/widget', () => {
     describe('#model', () => {
 
       it('should get the model for the widget', () => {
-        let widget = new StaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new StaticNotebook({ rendermime: defaultRenderMime(), renderer });
         expect(widget.model).to.be(null);
       });
 
       it('should set the model for the widget', () => {
-        let widget = new StaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new StaticNotebook({ rendermime: defaultRenderMime(), renderer });
         let model = new NotebookModel();
         widget.model = model;
         expect(widget.model).to.be(model);
       });
 
       it('should emit the `modelChanged` signal', () => {
-        let widget = new StaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new StaticNotebook({ rendermime: defaultRenderMime(), renderer });
         let model = new NotebookModel();
         widget.model = model;
         let called = false;
@@ -225,7 +244,7 @@ describe('notebook/notebook/widget', () => {
       });
 
       it('should be a no-op if the value does not change', () => {
-        let widget = new StaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new StaticNotebook({ rendermime: defaultRenderMime(), renderer });
         let model = new NotebookModel();
         widget.model = model;
         let called = false;
@@ -235,7 +254,7 @@ describe('notebook/notebook/widget', () => {
       });
 
       it('should add the model cells to the layout', () => {
-        let widget = new LogStaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new LogStaticNotebook({ rendermime: defaultRenderMime(), renderer });
         let model = new NotebookModel();
         model.fromJSON(DEFAULT_CONTENT);
         widget.model = model;
@@ -243,7 +262,7 @@ describe('notebook/notebook/widget', () => {
       });
 
       it('should set the mime types of the cell widgets', () => {
-        let widget = new LogStaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new LogStaticNotebook({ rendermime: defaultRenderMime(), renderer });
         let model = new NotebookModel();
         let cursor = model.getMetadata('language_info');
         cursor.setValue({ name: 'python', codemirror_mode: 'python' });
@@ -307,7 +326,7 @@ describe('notebook/notebook/widget', () => {
     describe('#rendermime', () => {
 
       it('should be the rendermime instance used by the widget', () => {
-        let widget = new StaticNotebook({ rendermime });
+        let widget = new StaticNotebook({ rendermime, renderer });
         expect(widget.rendermime).to.be(rendermime);
       });
 
@@ -321,8 +340,8 @@ describe('notebook/notebook/widget', () => {
     describe('#renderer', () => {
 
       it('should be the cell widget renderer used by the widget', () => {
-        let widget = new StaticNotebook({ rendermime });
-        expect(widget.renderer).to.be(StaticNotebook.defaultRenderer);
+        let widget = new StaticNotebook({ rendermime, renderer });
+        expect(widget.renderer).to.be(CodeMirrorNotebookRenderer.defaultRenderer);
       });
 
       it('should be read-only', () => {
@@ -335,12 +354,12 @@ describe('notebook/notebook/widget', () => {
     describe('#codeMimetype', () => {
 
       it('should get the mime type for code cells', () => {
-        let widget = new StaticNotebook({ rendermime });
+        let widget = new StaticNotebook({ rendermime, renderer });
         expect(widget.codeMimetype).to.be('text/plain');
       });
 
       it('should be set from language metadata', () => {
-        let widget = new LogStaticNotebook({ rendermime: defaultRenderMime() });
+        let widget = new LogStaticNotebook({ rendermime: defaultRenderMime(), renderer });
         let model = new NotebookModel();
         let cursor = model.getMetadata('language_info');
         cursor.setValue({ name: 'python', codemirror_mode: 'python' });
@@ -400,7 +419,7 @@ describe('notebook/notebook/widget', () => {
     describe('#onModelChanged()', () => {
 
       it('should be called when the model changes', () => {
-        let widget = new LogStaticNotebook({ rendermime });
+        let widget = new LogStaticNotebook({ rendermime, renderer });
         widget.model = new NotebookModel();
         expect(widget.methods).to.contain('onModelChanged');
       });
@@ -479,7 +498,7 @@ describe('notebook/notebook/widget', () => {
       describe('#createCodeCell()', () => {
 
         it('should create a `CodeCellWidget`', () => {
-          let renderer = new StaticNotebook.Renderer();
+          let renderer = new CodeMirrorNotebookRenderer();
           let model = new CodeCellModel();
           let widget = renderer.createCodeCell(model, rendermime);
           expect(widget).to.be.a(CodeCellWidget);
@@ -490,7 +509,7 @@ describe('notebook/notebook/widget', () => {
       describe('#createMarkdownCell()', () => {
 
         it('should create a `MarkdownCellWidget`', () => {
-          let renderer = new StaticNotebook.Renderer();
+          let renderer = new CodeMirrorNotebookRenderer();
           let model = new MarkdownCellModel();
           let widget = renderer.createMarkdownCell(model, rendermime);
           expect(widget).to.be.a(MarkdownCellWidget);
@@ -501,7 +520,7 @@ describe('notebook/notebook/widget', () => {
       describe('#createRawCell()', () => {
 
         it('should create a `RawCellWidget`', () => {
-          let renderer = new StaticNotebook.Renderer();
+          let renderer = new CodeMirrorNotebookRenderer();
           let model = new RawCellModel();
           let widget = renderer.createRawCell(model);
           expect(widget).to.be.a(RawCellWidget);
@@ -512,7 +531,7 @@ describe('notebook/notebook/widget', () => {
       describe('#updateCell()', () => {
 
         it('should be a no-op', () => {
-          let renderer = new StaticNotebook.Renderer();
+          let renderer = new CodeMirrorNotebookRenderer();
           let model = new CodeCellModel();
           let widget = renderer.createCodeCell(model, rendermime);
           renderer.updateCell(widget);
@@ -524,7 +543,7 @@ describe('notebook/notebook/widget', () => {
       describe('#getCodeMimetype()', () => {
 
         it('should get the preferred mime for code cells in the notebook', () => {
-          let renderer = new StaticNotebook.Renderer();
+          let renderer = new CodeMirrorNotebookRenderer();
           let model = new NotebookModel();
           let cursor = model.getMetadata('language_info');
           cursor.setValue({ name: 'python', mimetype: 'text/x-python' });
@@ -538,7 +557,7 @@ describe('notebook/notebook/widget', () => {
     describe('.defaultRenderer', () => {
 
       it('should be an instance of `StaticNotebook.Renderer', () => {
-        expect(StaticNotebook.defaultRenderer).to.be.a(StaticNotebook.Renderer);
+        expect(CodeMirrorNotebookRenderer.defaultRenderer).to.be.a(StaticNotebook.Renderer);
       });
 
     });
@@ -665,7 +684,7 @@ describe('notebook/notebook/widget', () => {
       it('should deselect all cells if switching to edit mode', (done) => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        widget.attach(document.body);
+        Widget.attach(widget, document.body);
         requestAnimationFrame(() => {
           for (let i = 0; i < widget.childCount(); i++) {
             let cell = widget.childAt(i);
@@ -683,7 +702,37 @@ describe('notebook/notebook/widget', () => {
           widget.dispose();
           done();
         });
+      });
 
+      it('should focus the cell if switching to edit mode', (done) => {
+        let widget = createActiveWidget();
+        Widget.attach(widget, document.body);
+        widget.mode = 'edit';
+        let cell = widget.childAt(widget.activeCellIndex);
+        // Wait for update-request.
+        requestAnimationFrame(() => {
+          // Notebook activates the editor.
+          expect(widget.methods).to.contain('onActivateRequest');
+          requestAnimationFrame(() => {
+            expect(cell.node.contains(document.activeElement)).to.be(true);
+            done();
+          });
+        });
+      });
+
+      it('should unrender a markdown cell when switching to edit mode', (done) => {
+        let widget = createActiveWidget();
+        Widget.attach(widget, document.body);
+        let cell = widget.model.factory.createMarkdownCell();
+        widget.model.cells.add(cell);
+        let child = widget.childAt(widget.childCount() - 1) as MarkdownCellWidget;
+        expect(child.rendered).to.be(true);
+        widget.activeCellIndex = widget.childCount() - 1;
+        widget.mode = 'edit';
+        requestAnimationFrame(() => {
+          expect(child.rendered).to.be(false);
+          done();
+        });
       });
 
     });
@@ -842,7 +891,7 @@ describe('notebook/notebook/widget', () => {
       beforeEach((done) => {
         widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        widget.attach(document.body);
+        Widget.attach(widget, document.body);
         requestAnimationFrame(() => { done(); });
       });
 
@@ -850,26 +899,26 @@ describe('notebook/notebook/widget', () => {
         widget.dispose();
       });
 
-      context('click', () => {
+      context('mousedown', () => {
 
         it('should set the active cell index', () => {
           let child = widget.childAt(1);
-          simulate(child.node, 'click');
-          expect(widget.events).to.contain('click');
+          simulate(child.node, 'mousedown');
+          expect(widget.events).to.contain('mousedown');
           expect(widget.activeCellIndex).to.be(1);
         });
 
         it('should be a no-op if the model is read only', () => {
           let child = widget.childAt(1);
           widget.model.readOnly = true;
-          simulate(child.node, 'click');
-          expect(widget.events).to.contain('click');
+          simulate(child.node, 'mousedown');
+          expect(widget.events).to.contain('mousedown');
           expect(widget.activeCellIndex).to.be(0);
         });
 
         it('should be a no-op if not not a cell', () => {
-          simulate(widget.node, 'click');
-          expect(widget.events).to.contain('click');
+          simulate(widget.node, 'mousedown');
+          expect(widget.events).to.contain('mousedown');
           expect(widget.activeCellIndex).to.be(0);
         });
 
@@ -879,7 +928,7 @@ describe('notebook/notebook/widget', () => {
           let count = widget.childCount();
           let child = widget.childAt(count - 1) as MarkdownCellWidget;
           expect(child.rendered).to.be(true);
-          simulate(child.node, 'click');
+          simulate(child.node, 'mousedown');
           expect(child.rendered).to.be(true);
           expect(widget.activeCell).to.be(child);
         });
@@ -938,12 +987,12 @@ describe('notebook/notebook/widget', () => {
       it('should add event listeners', (done) => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        widget.attach(document.body);
+        Widget.attach(widget, document.body);
         let child = widget.childAt(0);
         requestAnimationFrame(() => {
           expect(widget.methods).to.contain('onAfterAttach');
-          simulate(widget.node, 'click');
-          expect(widget.events).to.contain('click');
+          simulate(widget.node, 'mousedown');
+          expect(widget.events).to.contain('mousedown');
           simulate(widget.node, 'dblclick');
           expect(widget.events).to.contain('dblclick');
           simulate(child.node, 'focus');
@@ -956,7 +1005,7 @@ describe('notebook/notebook/widget', () => {
       it('should post an update request', (done) => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        widget.attach(document.body);
+        Widget.attach(widget, document.body);
         requestAnimationFrame(() => {
           expect(widget.methods).to.contain('onAfterAttach');
           requestAnimationFrame(() => {
@@ -974,18 +1023,67 @@ describe('notebook/notebook/widget', () => {
       it('should remove event listeners', (done) => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        widget.attach(document.body);
+        Widget.attach(widget, document.body);
         let child = widget.childAt(0);
         requestAnimationFrame(() => {
-          widget.detach();
+          Widget.detach(widget);
           expect(widget.methods).to.contain('onBeforeDetach');
           widget.events = [];
-          simulate(widget.node, 'click');
-          expect(widget.events).to.not.contain('click');
+          simulate(widget.node, 'mousedown');
+          expect(widget.events).to.not.contain('mousedown');
           simulate(widget.node, 'dblclick');
           expect(widget.events).to.not.contain('dblclick');
           simulate(child.node, 'focus');
           expect(widget.events).to.not.contain('focus');
+          widget.dispose();
+          done();
+        });
+      });
+
+    });
+
+    describe('#onActivateRequest()', () => {
+
+      it('should focus the node after an update', (done) => {
+        let widget = createActiveWidget();
+        Widget.attach(widget, document.body);
+        sendMessage(widget, WidgetMessage.ActivateRequest);
+        expect(widget.methods).to.contain('onActivateRequest');
+        requestAnimationFrame(() => {
+          expect(document.activeElement).to.be(widget.node);
+          widget.dispose();
+          done();
+        });
+      });
+
+      it('should post an `update-request', (done) => {
+        let widget = createActiveWidget();
+        sendMessage(widget, WidgetMessage.ActivateRequest);
+        expect(widget.methods).to.contain('onActivateRequest');
+        requestAnimationFrame(() => {
+          expect(widget.methods).to.contain('onUpdateRequest');
+          widget.dispose();
+          done();
+        });
+      });
+
+    });
+
+    describe('#onDeactivateRequest()', () => {
+
+      it('should set the mode to `command`', () => {
+        let widget = createActiveWidget();
+        widget.mode = 'edit';
+        sendMessage(widget, WidgetMessage.DeactivateRequest);
+        expect(widget.methods).to.contain('onDeactivateRequest');
+        expect(widget.mode).to.be('command');
+      });
+
+      it('should post an `update-request`', (done) => {
+        let widget = createActiveWidget();
+        sendMessage(widget, WidgetMessage.DeactivateRequest);
+        requestAnimationFrame(() => {
+          expect(widget.methods).to.contain('onUpdateRequest');
           widget.dispose();
           done();
         });
@@ -1000,7 +1098,7 @@ describe('notebook/notebook/widget', () => {
       beforeEach((done) => {
         widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        widget.attach(document.body);
+        Widget.attach(widget, document.body);
         requestAnimationFrame(() => {  done(); });
       });
 
@@ -1013,36 +1111,10 @@ describe('notebook/notebook/widget', () => {
         expect(widget.hasClass('jp-mod-commandMode')).to.be(true);
       });
 
-      it('should focus the widget if in command mode', () => {
-        expect(widget.node).to.be(document.activeElement);
-      });
-
       it('should apply the edit class if in edit mode', (done) => {
         widget.mode = 'edit';
         requestAnimationFrame(() => {
           expect(widget.hasClass('jp-mod-editMode')).to.be(true);
-          done();
-        });
-      });
-
-      it('should focus the cell if in edit mode', (done) => {
-        widget.mode = 'edit';
-        let cell = widget.childAt(widget.activeCellIndex);
-        requestAnimationFrame(() => {
-          expect(cell.node.contains(document.activeElement)).to.be(true);
-          done();
-        });
-      });
-
-      it('should unrender a markdown cell in edit mode', (done) => {
-        let cell = widget.model.factory.createMarkdownCell();
-        widget.model.cells.add(cell);
-        let child = widget.childAt(widget.childCount() - 1) as MarkdownCellWidget;
-        expect(child.rendered).to.be(true);
-        widget.activeCellIndex = widget.childCount() - 1;
-        widget.mode = 'edit';
-        requestAnimationFrame(() => {
-          expect(child.rendered).to.be(false);
           done();
         });
       });

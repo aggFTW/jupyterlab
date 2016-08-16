@@ -3,19 +3,24 @@
 
 import {
   Message
-} from 'phosphor-messaging';
+} from 'phosphor/lib/core/messaging';
 
 import {
-  ISignal, Signal
-} from 'phosphor-signaling';
+  defineSignal, ISignal
+} from 'phosphor/lib/core/signaling';
+
+import {
+  scrollIntoViewIfNeeded
+} from 'phosphor/lib/dom/query';
 
 import {
   Widget
-} from 'phosphor-widget';
+} from 'phosphor/lib/ui/widget';
 
 import {
   ICompletionModel, ICompletionItem
 } from './model';
+
 
 /**
  * The class name added to completion menu widgets.
@@ -59,18 +64,10 @@ const USE_CAPTURE = true;
 export
 class CompletionWidget extends Widget {
   /**
-   * Create the DOM node for a text completion menu.
-   */
-  static createNode(): HTMLElement {
-    let node = document.createElement('ul');
-    return node;
-  }
-
-  /**
    * Construct a text completion menu widget.
    */
   constructor(options: CompletionWidget.IOptions = {}) {
-    super();
+    super({ node: document.createElement('ul') });
     this._renderer = options.renderer || CompletionWidget.defaultRenderer;
     this.anchor = options.anchor || null;
     this.model = options.model || null;
@@ -80,13 +77,10 @@ class CompletionWidget extends Widget {
     this.hide();
   }
 
-
   /**
    * A signal emitted when a selection is made from the completion menu.
    */
-  get selected(): ISignal<CompletionWidget, string> {
-    return Private.selectedSignal.bind(this);
-  }
+  selected: ISignal<CompletionWidget, string>;
 
   /**
    * A signal emitted when the completion widget's visibility changes.
@@ -95,9 +89,7 @@ class CompletionWidget extends Widget {
    * This signal is useful when there are multiple floating widgets that may
    * contend with the same space and ought to be mutually exclusive.
    */
-  get visibilityChanged(): ISignal<CompletionWidget, void> {
-    return Private.visibilityChangedSignal.bind(this);
-  }
+  visibilityChanged: ISignal<CompletionWidget, void>;
 
   /**
    * The model used by the completion widget.
@@ -291,7 +283,7 @@ class CompletionWidget extends Widget {
     }
     active = items[this._activeIndex] as HTMLElement;
     active.classList.add(ACTIVE_CLASS);
-    Private.scrollIfNeeded(this.node, active);
+    scrollIntoViewIfNeeded(this.node, active);
   }
 
   /**
@@ -319,6 +311,12 @@ class CompletionWidget extends Widget {
             event.stopPropagation();
             event.stopImmediatePropagation();
             this._selectActive();
+            return;
+          case 27: // Esc key
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            this.reset();
             return;
           case 38: // Up arrow key
           case 40: // Down arrow key
@@ -458,6 +456,11 @@ class CompletionWidget extends Widget {
 }
 
 
+// Define the signals for the `CompletionWidget` class.
+defineSignal(CompletionWidget.prototype, 'selected');
+defineSignal(CompletionWidget.prototype, 'visibilityChanged');
+
+
 export
 namespace CompletionWidget {
   /**
@@ -531,18 +534,6 @@ namespace CompletionWidget {
  */
 namespace Private {
   /**
-   * A signal emitted when state of the completion menu changes.
-   */
-  export
-  const selectedSignal = new Signal<CompletionWidget, string>();
-
-  /**
-   * A signal emitted when the completion widget's visibility changes.
-   */
-  export
-  const visibilityChangedSignal = new Signal<CompletionWidget, void>();
-
-  /**
    * Returns the common subset string that a list of strings shares.
    */
   export
@@ -587,23 +578,5 @@ namespace Private {
       event.ctrlKey ||
       event.shiftKey ||
       event.metaKey;
-  }
-
-  /**
-   * Scroll an element into view if needed.
-   *
-   * @param area - The scroll area element.
-   *
-   * @param elem - The element of interest.
-   */
-  export
-  function scrollIfNeeded(area: HTMLElement, elem: HTMLElement): void {
-    let ar = area.getBoundingClientRect();
-    let er = elem.getBoundingClientRect();
-    if (er.top < ar.top - 10) {
-      area.scrollTop -= ar.top - er.top + 10;
-    } else if (er.bottom > ar.bottom + 10) {
-      area.scrollTop += er.bottom - ar.bottom + 10;
-    }
   }
 }

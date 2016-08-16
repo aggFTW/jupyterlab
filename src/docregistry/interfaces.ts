@@ -7,19 +7,19 @@ import {
 
 import {
   IDisposable
-} from 'phosphor-disposable';
-
-import {
-  IChangedArgs
-} from 'phosphor-properties';
+} from 'phosphor/lib/core/disposable';
 
 import {
   ISignal
-} from 'phosphor-signaling';
+} from 'phosphor/lib/core/signaling';
 
 import {
   Widget
-} from 'phosphor-widget';
+} from 'phosphor/lib/ui/widget';
+
+import {
+  IChangedArgs
+} from '../common/interfaces';
 
 
 /**
@@ -121,12 +121,9 @@ interface IDocumentContext<T extends IDocumentModel> extends IDisposable {
   populated: ISignal<IDocumentContext<T>, void>;
 
   /**
-   * The unique id of the context.
-   *
-   * #### Notes
-   * This is a read-only property.
+   * A signal emitted when the context is disposed.
    */
-  id: string;
+  disposed: ISignal<IDocumentContext<T>, void>;
 
   /**
    * Get the model associated with the document.
@@ -200,6 +197,41 @@ interface IDocumentContext<T extends IDocumentModel> extends IDisposable {
    * Revert the document contents to disk contents.
    */
   revert(): Promise<void>;
+
+  /**
+   * Create a checkpoint for the file.
+   *
+   * @returns A promise which resolves with the new checkpoint model when the
+   *   checkpoint is created.
+   */
+  createCheckpoint(): Promise<IContents.ICheckpointModel>;
+
+  /**
+   * Delete a checkpoint for the file.
+   *
+   * @param checkpointID - The id of the checkpoint to delete.
+   *
+   * @returns A promise which resolves when the checkpoint is deleted.
+   */
+  deleteCheckpoint(checkpointID: string): Promise<void>;
+
+  /**
+   * Restore the file to a known checkpoint state.
+   *
+   * @param checkpointID - The optional id of the checkpoint to restore,
+   *   defaults to the most recent checkpoint.
+   *
+   * @returns A promise which resolves when the checkpoint is restored.
+   */
+  restoreCheckpoint(checkpointID?: string): Promise<void>;
+
+  /**
+   * List available checkpoints for the file.
+   *
+   * @returns A promise which resolves with a list of checkpoint models for
+   *    the file.
+   */
+  listCheckpoints(): Promise<IContents.ICheckpointModel[]>;
 
   /**
    * Get the list of running sessions.
@@ -315,7 +347,7 @@ interface IWidgetExtension<T extends Widget, U extends IDocumentModel> {
  * The interface for a model factory.
  */
 export
-interface IModelFactory extends IDisposable {
+interface IModelFactory<T extends IDocumentModel> extends IDisposable {
   /**
    * The name of the model.
    *
@@ -346,7 +378,7 @@ interface IModelFactory extends IDisposable {
    *
    * @returns A new document model.
    */
-  createNew(languagePreference?: string): IDocumentModel;
+  createNew(languagePreference?: string): T;
 
   /**
    * Get the preferred kernel language given an extension.

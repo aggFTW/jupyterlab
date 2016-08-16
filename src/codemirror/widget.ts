@@ -10,11 +10,11 @@ import 'codemirror/lib/codemirror.css';
 
 import {
   Message
-} from 'phosphor-messaging';
+} from 'phosphor/lib/core/messaging';
 
 import {
   ResizeMessage, Widget
-} from 'phosphor-widget';
+} from 'phosphor/lib/ui/widget';
 
 
 /**
@@ -88,6 +88,13 @@ class CodeMirrorWidget extends Widget {
       this._editor.setSize(msg.width, msg.height);
     }
     this._needsRefresh = false;
+  }
+
+  /**
+   * Handle `'activate-request'` messages.
+   */
+  protected onActivateRequest(msg: Message): void {
+    this._editor.focus();
   }
 
   private _editor: CodeMirror.Editor = null;

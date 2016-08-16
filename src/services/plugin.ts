@@ -2,18 +2,26 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  ServiceManager, createServiceManager
+  createServiceManager
 } from 'jupyter-js-services';
+
+import {
+  JupyterLabPlugin
+} from '../application';
+
+import {
+  IServiceManager
+} from './';
 
 
 /**
  * The default services provider.
  */
 export
-const servicesProvider = {
+const servicesProvider: JupyterLabPlugin<IServiceManager> = {
   id: 'jupyter.services.services',
-  provides: ServiceManager,
-  resolve: () => {
-    return createServiceManager() as Promise<ServiceManager>;
+  provides: IServiceManager,
+  activate: (): Promise<IServiceManager> => {
+    return createServiceManager() as Promise<IServiceManager>;
   }
 };

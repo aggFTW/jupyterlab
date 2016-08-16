@@ -7,7 +7,7 @@ import {
 
 import {
   MimeData as IClipboard
-} from 'phosphor-dragdrop';
+} from 'phosphor/lib/core/mimedata';
 
 import {
   ICellModel, CodeCellModel,
@@ -335,6 +335,8 @@ namespace NotebookActions {
       promises.push(Private.runCell(widget, child, kernel));
     }
     return Promise.all(promises).then(results => {
+      // Post an update request.
+      widget.update();
       for (let result of results) {
         if (!result) {
           return false;
@@ -364,16 +366,17 @@ namespace NotebookActions {
     if (!widget.model || !widget.activeCell) {
       return Promise.resolve(false);
     }
-    return run(widget, kernel).then(result => {
-      let model = widget.model;
-      if (widget.activeCellIndex === widget.childCount() - 1) {
-        let cell = model.factory.createCodeCell();
-        model.cells.add(cell);
-        widget.mode = 'edit';
-      }
+    let promise = run(widget, kernel);
+    let model = widget.model;
+    if (widget.activeCellIndex === widget.childCount() - 1) {
+      let cell = model.factory.createCodeCell();
+      model.cells.add(cell);
       widget.activeCellIndex++;
-      return result;
-    });
+      widget.mode = 'edit';
+    } else {
+      widget.activeCellIndex++;
+    }
+    return promise;
   }
 
   /**
@@ -395,14 +398,13 @@ namespace NotebookActions {
     if (!widget.model || !widget.activeCell) {
       return Promise.resolve(false);
     }
-    return run(widget, kernel).then(result => {
-      let model = widget.model;
-      let cell = model.factory.createCodeCell();
-      model.cells.insert(widget.activeCellIndex + 1, cell);
-      widget.activeCellIndex++;
-      widget.mode = 'edit';
-      return result;
-    });
+    let promise = run(widget, kernel);
+    let model = widget.model;
+    let cell = model.factory.createCodeCell();
+    model.cells.insert(widget.activeCellIndex + 1, cell);
+    widget.activeCellIndex++;
+    widget.mode = 'edit';
+    return promise;
   }
 
   /**
@@ -866,6 +868,9 @@ namespace Private {
           if (reply && reply.content.status === 'ok') {
             let content = reply.content as KernelMessage.IExecuteOkReply;
             parent.inspectionHandler.handleExecuteReply(content);
+            if (content.payload && content.payload.length) {
+              handlePayload(content, parent, child);
+            }
           } else {
             parent.inspectionHandler.handleExecuteReply(null);
           }
@@ -878,6 +883,38 @@ namespace Private {
       break;
     }
     return Promise.resolve(true);
+  }
+
+  /**
+   * Handle payloads from an execute reply.
+   *
+   * #### Notes
+   * Payloads are deprecated and there are no official interfaces for them in
+   * the kernel type definitions.
+   * See [Payloads (DEPRECATED)](http://jupyter-client.readthedocs.io/en/latest/messaging.html#payloads-deprecated).
+   */
+  function handlePayload(content: KernelMessage.IExecuteOkReply, parent: Notebook, child: BaseCellWidget) {
+    let setNextInput = content.payload.filter(i => {
+      return (i as any).source === 'set_next_input';
+    })[0];
+    if (setNextInput) {
+      let text = (setNextInput as any).text;
+      let replace = (setNextInput as any).replace;
+      if (replace) {
+        child.model.source = text;
+      } else {
+        // Create a new code cell and add as the next cell.
+        let cell = parent.model.factory.createCodeCell();
+        cell.source = text;
+        let cells = parent.model.cells;
+        let i = cells.indexOf(child.model);
+        if (i === -1) {
+          cells.add(cell);
+        } else {
+          cells.insert(i + 1, cell);
+        }
+      }
+    }
   }
 
   /**
