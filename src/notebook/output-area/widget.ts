@@ -6,6 +6,10 @@ import {
 } from 'jupyter-js-services';
 
 import {
+  JSONObject
+} from 'phosphor/lib/algorithm/json';
+
+import {
   Message
 } from 'phosphor/lib/core/messaging';
 
@@ -236,7 +240,7 @@ class OutputAreaWidget extends Widget {
     // Trigger a update of the child widgets.
     let layout = this.layout as PanelLayout;
     for (let i = 0; i < layout.widgets.length; i++) {
-      this._updateChild(i);
+      this.updateChild(i);
     }
   }
 
@@ -315,6 +319,86 @@ class OutputAreaWidget extends Widget {
   }
 
   /**
+   * Add a child to the layout.
+   */
+  protected addChild(): void {
+    let widget = this._renderer.createOutput({ rendermime: this.rendermime });
+    let layout = this.layout as PanelLayout;
+    layout.addWidget(widget);
+    this.updateChild(layout.widgets.length - 1);
+  }
+
+  /**
+   * Remove a child from the layout.
+   */
+  protected removeChild(index: number): void {
+    let layout = this.layout as PanelLayout;
+    layout.widgets.at(index).dispose();
+  }
+
+  /**
+   * Update a child in the layout.
+   */
+  protected updateChild(index: number): void {
+    let layout = this.layout as PanelLayout;
+    let widget = layout.widgets.at(index) as OutputWidget;
+    let output = this._model.get(index);
+    let injector: (mimetype: string, value: string) => void;
+    if (output.output_type === 'display_data' ||
+        output.output_type === 'execute_result') {
+      injector = (mimetype: string, value: string) => {
+        this._model.addMimeData(
+          output as nbformat.IDisplayData, mimetype, value
+        );
+      };
+    }
+    let trusted = this._trusted;
+    widget.render({ output, trusted, injector });
+  }
+
+  /**
+   * Follow changes on the model state.
+   */
+  protected onModelStateChanged(sender: OutputAreaModel, args: IListChangedArgs<nbformat.IOutput>) {
+    switch (args.type) {
+    case 'add':
+      // Children are always added at the end.
+      this.addChild();
+      break;
+    case 'replace':
+      // Only "clear" is supported by the model.
+      // When an output area is cleared and then quickly replaced with new
+      // content (as happens with @interact in widgets, for example), the
+      // quickly changing height can make the page jitter.
+      // We introduce a small delay in the minimum height
+      // to prevent this jitter.
+      let rect = this.node.getBoundingClientRect();
+      this.node.style.minHeight = `${rect.height}px`;
+      if (this._minHeightTimeout) {
+        clearTimeout(this._minHeightTimeout);
+      }
+      this._minHeightTimeout = setTimeout(() => {
+        if (this.isDisposed) {
+          return;
+        }
+        this.node.style.minHeight = '';
+      }, 50);
+
+      let oldValues = args.oldValue as nbformat.IOutput[];
+      for (let i = args.oldIndex; i < oldValues.length; i++) {
+        this.removeChild(args.oldIndex);
+      }
+      break;
+    case 'set':
+      this.updateChild(args.newIndex);
+      break;
+    default:
+      break;
+    }
+    this.update();
+  }
+
+  /**
    * Handle a new model.
    *
    * #### Notes
@@ -332,29 +416,29 @@ class OutputAreaWidget extends Widget {
   private _onModelChanged(oldValue: OutputAreaModel, newValue: OutputAreaModel): void {
     let layout = this.layout as PanelLayout;
     if (oldValue) {
-      oldValue.changed.disconnect(this._onModelStateChanged, this);
+      oldValue.changed.disconnect(this.onModelStateChanged, this);
       oldValue.disposed.disconnect(this._onModelDisposed, this);
     }
 
     let start = newValue ? newValue.length : 0;
     // Clear unnecessary child widgets.
     for (let i = start; i < layout.widgets.length; i++) {
-      this._removeChild(i);
+      this.removeChild(i);
     }
     if (!newValue) {
       return;
     }
 
-    newValue.changed.connect(this._onModelStateChanged, this);
+    newValue.changed.connect(this.onModelStateChanged, this);
     newValue.disposed.connect(this._onModelDisposed, this);
 
     // Reuse existing child widgets.
     for (let i = 0; i < layout.widgets.length; i++) {
-      this._updateChild(i);
+      this.updateChild(i);
     }
     // Add new widgets as necessary.
     for (let i = layout.widgets.length; i < newValue.length; i++) {
-      this._addChild();
+      this.addChild();
     }
   }
 
@@ -370,77 +454,10 @@ class OutputAreaWidget extends Widget {
     this.dispose();
   }
 
-  /**
-   * Add a child to the layout.
-   */
-  private _addChild(): void {
-    let widget = this._renderer.createOutput({ rendermime: this.rendermime });
-    let layout = this.layout as PanelLayout;
-    layout.addWidget(widget);
-    this._updateChild(layout.widgets.length - 1);
-  }
-
-  /**
-   * Remove a child from the layout.
-   */
-  private _removeChild(index: number): void {
-    let layout = this.layout as PanelLayout;
-    layout.widgets.at(index).dispose();
-  }
-
-  /**
-   * Update a child in the layout.
-   */
-  private _updateChild(index: number): void {
-    let layout = this.layout as PanelLayout;
-    let widget = layout.widgets.at(index) as OutputWidget;
-    let output = this._model.get(index);
-    widget.render(output, this._trusted);
-  }
-
-  /**
-   * Follow changes on the model state.
-   */
-  private _onModelStateChanged(sender: OutputAreaModel, args: IListChangedArgs<nbformat.IOutput>) {
-    switch (args.type) {
-    case 'add':
-      // Children are always added at the end.
-      this._addChild();
-      break;
-    case 'replace':
-      // Only "clear" is supported by the model.
-      // When an output area is cleared and then quickly replaced with new
-      // content (as happens with @interact in widgets, for example), the
-      // quickly changing height can make the page jitter.
-      // We introduce a small delay in the minimum height
-      // to prevent this jitter.
-      let rect = this.node.getBoundingClientRect();
-      let oldHeight = this.node.style.minHeight;
-      this.node.style.minHeight = `${rect.height}px`;
-      setTimeout(() => {
-        if (this.isDisposed) {
-          return;
-        }
-        this.node.style.minHeight = oldHeight;
-      }, 50);
-
-      let oldValues = args.oldValue as nbformat.IOutput[];
-      for (let i = args.oldIndex; i < oldValues.length; i++) {
-        this._removeChild(args.oldIndex);
-      }
-      break;
-    case 'set':
-      this._updateChild(args.newIndex);
-      break;
-    default:
-      break;
-    }
-    this.update();
-  }
-
   private _trusted = false;
   private _fixedHeight = false;
   private _collapsed = false;
+  private _minHeightTimeout: number = null;
   private _model: OutputAreaModel = null;
   private _rendermime: RenderMime = null;
   private _renderer: OutputAreaWidget.IRenderer = null;
@@ -709,11 +726,11 @@ class OutputWidget extends Widget {
   /**
    * Render an output.
    *
-   * @param output - The kernel output message payload.
-   *
-   * @param trusted - Whether the output is trusted.
+   * @param options - The options used to render the output.
    */
-  render(output: OutputAreaModel.Output, trusted=false): void {
+  render(options: OutputWidget.IRenderOptions): void {
+    let { output, trusted, injector } = options;
+
     // Handle an input request.
     if (output.output_type === 'input_request') {
       let child = new InputWidget(output as OutputAreaModel.IInputRequest);
@@ -737,7 +754,7 @@ class OutputWidget extends Widget {
     }
 
     // Create the output result area.
-    let child = rendermime.render(data, trusted);
+    let child = rendermime.render({ bundle: data, trusted, injector });
     if (!child) {
       console.log(msg);
       console.log(data);
@@ -765,9 +782,6 @@ class OutputWidget extends Widget {
     case 'error':
       child.addClass(ERROR_CLASS);
       break;
-    default:
-      console.error(`Unrecognized output type: ${output.output_type}`);
-      data = {};
     }
   }
 
@@ -825,11 +839,8 @@ class OutputWidget extends Widget {
           `${out.ename}: ${out.evalue}`
       };
       break;
-    default:
-      console.error(`Unrecognized output type: ${output.output_type}`);
-      bundle = {};
     }
-    return bundle;
+    return bundle || {};
   }
 
   /**
@@ -852,6 +863,34 @@ class OutputWidget extends Widget {
   private _placeholder: Widget = null;
 }
 
+
+/**
+ * The namespace for `OutputWidget` statics.
+ */
+export
+namespace OutputWidget {
+  /**
+   * The options for rendering the output.
+   */
+   export
+   interface IRenderOptions {
+    /**
+     * The kernel output message payload.
+     */
+    output: OutputAreaModel.Output;
+
+    /**
+     * Whether the output is trusted.
+     */
+    trusted: boolean;
+
+    /**
+     * A callback that can be used to add a mimetype to the original bundle.
+     */
+    injector?: (mimetype: string, value: string) => void;
+   }
+
+}
 
 /**
  * A widget that handles stdin requests from the kernel.

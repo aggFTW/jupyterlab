@@ -50,6 +50,7 @@ import {
 } from 'phosphor/lib/ui/widget';
 
 import 'jupyterlab/lib/default-theme/index.css';
+import '../index.css';
 
 
 function main(): void {

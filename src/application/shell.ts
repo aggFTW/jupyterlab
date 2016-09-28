@@ -9,7 +9,7 @@ import {
 } from 'phosphor/lib/collections/vector';
 
 import {
-  BoxPanel
+  BoxLayout, BoxPanel
 } from 'phosphor/lib/ui/boxpanel';
 
 import {
@@ -19,6 +19,10 @@ import {
 import {
   FocusTracker
 } from 'phosphor/lib/ui/focustracker';
+
+import {
+  each
+} from 'phosphor/lib/algorithm/iteration';
 
 import {
   Panel
@@ -77,7 +81,7 @@ interface ISideAreaOptions {
  * The application shell for JupyterLab.
  */
 export
-class ApplicationShell extends Panel {
+class ApplicationShell extends Widget {
   /**
    * Construct a new application shell.
    */
@@ -92,6 +96,7 @@ class ApplicationShell extends Panel {
     let hsplitPanel = this._hsplitPanel = new SplitPanel();
     let leftHandler = this._leftHandler = new SideBarHandler('left');
     let rightHandler = this._rightHandler = new SideBarHandler('right');
+    let rootLayout = new BoxLayout();
 
     topPanel.id = 'jp-top-panel';
     hboxPanel.id = 'jp-main-content-panel';
@@ -107,7 +112,7 @@ class ApplicationShell extends Panel {
     rightHandler.stackedPanel.id = 'jp-right-stack';
 
     hboxPanel.spacing = 0;
-    dockPanel.spacing = 8;
+    dockPanel.spacing = 5;
     hsplitPanel.spacing = 1;
 
     hboxPanel.direction = 'left-to-right';
@@ -129,8 +134,16 @@ class ApplicationShell extends Panel {
     hboxPanel.addWidget(hsplitPanel);
     hboxPanel.addWidget(rightHandler.sideBar);
 
-    this.addWidget(topPanel);
-    this.addWidget(hboxPanel);
+    rootLayout.direction = 'top-to-bottom';
+    rootLayout.spacing = 0; // TODO make this configurable?
+
+    BoxLayout.setStretch(topPanel, 0);
+    BoxLayout.setStretch(hboxPanel, 1);
+
+    rootLayout.addWidget(topPanel);
+    rootLayout.addWidget(hboxPanel);
+
+    this.layout = rootLayout;
 
     this._tracker = new FocusTracker<Widget>();
     this._tracker.currentChanged.connect((sender, args) => {
@@ -147,6 +160,9 @@ class ApplicationShell extends Panel {
 
   /**
    * Add a widget to the top content area.
+   *
+   * #### Notes
+   * Widgets must have a unique `id` property, which will be used as the DOM id.
    */
   addToTopArea(widget: Widget, options: ISideAreaOptions = {}): void {
     if (!widget.id) {
@@ -159,6 +175,9 @@ class ApplicationShell extends Panel {
 
   /**
    * Add a widget to the left content area.
+   *
+   * #### Notes
+   * Widgets must have a unique `id` property, which will be used as the DOM id.
    */
   addToLeftArea(widget: Widget, options: ISideAreaOptions = {}): void {
     if (!widget.id) {
@@ -171,6 +190,9 @@ class ApplicationShell extends Panel {
 
   /**
    * Add a widget to the right content area.
+   *
+   * #### Notes
+   * Widgets must have a unique `id` property, which will be used as the DOM id.
    */
   addToRightArea(widget: Widget, options: ISideAreaOptions = {}): void {
     if (!widget.id) {
@@ -183,6 +205,9 @@ class ApplicationShell extends Panel {
 
   /**
    * Add a widget to the main content area.
+   *
+   * #### Notes
+   * Widgets must have a unique `id` property, which will be used as the DOM id.
    */
   addToMainArea(widget: Widget): void {
     // TODO
@@ -231,6 +256,15 @@ class ApplicationShell extends Panel {
    */
   collapseRight(): void {
     this._rightHandler.collapse();
+  }
+
+  /**
+   * Close all tracked widgets.
+   */
+  closeAll(): void {
+    each(this._tracker.widgets, widget => {
+      widget.close();
+    });
   }
 
   private _topPanel: Panel;
@@ -364,9 +398,9 @@ class SideBarHandler {
       newWidget.show();
     }
     if (newWidget) {
-      document.body.dataset[`${this._side}Area`] = newWidget.id;
+      document.body.setAttribute(`data-${this._side}Area`, newWidget.id);
     } else {
-      delete document.body.dataset[`${this._side}Area`];
+      document.body.removeAttribute(`data-${this._side}Area`);
     }
     this._refreshVisibility();
   }

@@ -9,6 +9,7 @@ require('es6-promise').polyfill();
 require('font-awesome/css/font-awesome.min.css');
 require('jupyterlab/lib/default-theme/index.css');
 
+
 var lab = new JupyterLab();
 
 lab.registerPlugins([
@@ -16,6 +17,7 @@ lab.registerPlugins([
   require('jupyterlab/lib/clipboard/plugin').clipboardProvider,
   require('jupyterlab/lib/commandpalette/plugin').commandPaletteProvider,
   require('jupyterlab/lib/console/plugin').consoleExtension,
+  require('jupyterlab/lib/console/codemirror/plugin').rendererProvider,
   require('jupyterlab/lib/docregistry/plugin').docRegistryProvider,
   require('jupyterlab/lib/editorwidget/plugin').editorHandlerProvider,
   require('jupyterlab/lib/faq/plugin').faqExtension,
@@ -28,6 +30,7 @@ lab.registerPlugins([
   require('jupyterlab/lib/mainmenu/plugin').mainMenuProvider,
   require('jupyterlab/lib/markdownwidget/plugin').markdownHandlerExtension,
   require('jupyterlab/lib/notebook/plugin').notebookTrackerProvider,
+  require('jupyterlab/lib/notebook/codemirror/plugin').rendererProvider,
   require('jupyterlab/lib/rendermime/plugin').renderMimeProvider,
   require('jupyterlab/lib/running/plugin').runningSessionsExtension,
   require('jupyterlab/lib/services/plugin').servicesProvider,

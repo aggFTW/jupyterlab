@@ -6,6 +6,10 @@ import {
 } from 'phosphor/lib/algorithm/iteration';
 
 import {
+  AttachedProperty
+} from 'phosphor/lib/core/properties';
+
+import {
   FocusTracker
 } from 'phosphor/lib/ui/focustracker';
 
@@ -37,18 +41,10 @@ import {
   IEditorTracker
 } from './index';
 
-import 'codemirror/theme/material.css';
-import 'codemirror/theme/zenburn.css';
-import 'codemirror/theme/abcdef.css';
-import 'codemirror/theme/base16-light.css';
-import 'codemirror/theme/base16-dark.css';
-import 'codemirror/theme/dracula.css';
-import 'codemirror/theme/hopscotch.css';
-import 'codemirror/theme/mbo.css';
-import 'codemirror/theme/mdn-like.css';
-import 'codemirror/theme/seti.css';
-import 'codemirror/theme/the-matrix.css';
-import 'codemirror/theme/xq-light.css';
+import {
+  DEFAULT_CODEMIRROR_THEME
+} from '../codemirror/widget';
+
 import 'codemirror/addon/edit/matchbrackets.js';
 import 'codemirror/addon/edit/closebrackets.js';
 import 'codemirror/addon/comment/comment.js';
@@ -87,9 +83,10 @@ const cmdIds = {
   lineWrap: 'editor:line-wrap',
   matchBrackets: 'editor:match-brackets',
   vimMode: 'editor:vim-mode',
-  defaultMode: 'editor:default-mode',
   closeAll: 'editor:close-all',
-  changeTheme: 'editor:change-theme'
+  changeTheme: 'editor:change-theme',
+  createConsole: 'editor:create-console',
+  runCode: 'editor:run-code'
 };
 
 
@@ -115,50 +112,93 @@ function activateEditorHandler(app: JupyterLab, registry: IDocumentRegistry, mai
 
   mainMenu.addMenu(createMenu(app, tracker), {rank: 30});
 
-  addCommands(app, tracker);
+  let commands = app.commands;
+
+  commands.addCommand(cmdIds.lineNumbers, {
+    execute: () => { toggleLineNums(tracker); },
+    label: 'Toggle Line Numbers',
+  });
+
+  commands.addCommand(cmdIds.lineWrap, {
+    execute: () => { toggleLineWrap(tracker); },
+    label: 'Toggle Line Wrap',
+  });
+
+  commands.addCommand(cmdIds.matchBrackets, {
+    execute: () => { toggleMatchBrackets(tracker); },
+    label: 'Toggle Match Brackets',
+  });
+
+  commands.addCommand(cmdIds.vimMode, {
+    execute: () => { toggleVim(tracker); },
+    label: 'Toggle Vim Mode'
+  });
+
+  commands.addCommand(cmdIds.closeAll, {
+    execute: () => { closeAllFiles(tracker); },
+    label: 'Close all files'
+  });
+
+  commands.addCommand(cmdIds.createConsole, {
+    execute: () => {
+      let widget = tracker.currentWidget;
+      if (!widget) {
+        return;
+      }
+      let options: any = {
+        path: widget.context.path,
+        preferredLanguage: widget.context.model.defaultKernelLanguage
+      };
+      commands.execute('console:create', options).then(id => {
+        sessionIdProperty.set(widget, id);
+      });
+    },
+    label: 'Create Console for Editor'
+  });
+
+  commands.addCommand(cmdIds.runCode, {
+    execute: () => {
+      let widget = tracker.currentWidget;
+      if (!widget) {
+        return;
+      }
+      // Get the session id.
+      let id = sessionIdProperty.get(widget);
+      if (!id) {
+        return;
+      }
+      // Get the selected code from the editor.
+      let doc = widget.editor.getDoc();
+      let code = doc.getSelection();
+      if (!code) {
+        let { line } = doc.getCursor();
+        code = doc.getLine(line);
+      }
+      commands.execute('console:inject', { id, code });
+    },
+    label: 'Run Code',
+  });
 
   [
     cmdIds.lineNumbers,
     cmdIds.lineWrap,
     cmdIds.matchBrackets,
-    cmdIds.defaultMode,
     cmdIds.vimMode,
     cmdIds.closeAll,
+    cmdIds.createConsole,
+    cmdIds.runCode,
   ].forEach(command => palette.addItem({ command, category: 'Editor' }));
 
   return tracker;
 }
 
 
+
 /**
- * Add the editor commands to the application's command registry.
+ * An attached property for the session id associated with an editor widget.
  */
-function addCommands(app: JupyterLab, tracker: IEditorTracker): void {
-  app.commands.addCommand(cmdIds.lineNumbers, {
-    execute: () => { toggleLineNums(tracker); },
-    label: 'Toggle Line Numbers',
-  });
-  app.commands.addCommand(cmdIds.lineWrap, {
-    execute: () => { toggleLineWrap(tracker); },
-    label: 'Toggle Line Wrap',
-  });
-  app.commands.addCommand(cmdIds.matchBrackets, {
-    execute: () => { toggleMatchBrackets(tracker); },
-    label: 'Toggle Match Brackets',
-  });
-  app.commands.addCommand(cmdIds.defaultMode, {
-    execute: () => { toggleDefault(tracker); },
-    label: 'Vim Mode Off'
-  });
-  app.commands.addCommand(cmdIds.vimMode, {
-    execute: () => { toggleVim(tracker); },
-    label: 'Vim Mode'
-  });
-  app.commands.addCommand(cmdIds.closeAll, {
-    execute: () => { closeAllFiles(tracker); },
-    label: 'Close all files'
-  });
-}
+const sessionIdProperty = new AttachedProperty<EditorWidget, string>({ name: 'sessionId' });
+
 
 
 /**
@@ -192,20 +232,13 @@ function toggleMatchBrackets(tracker: IEditorTracker) {
 }
 
 /**
- * Turns on the editor's vim mode
+ * Toggle the editor's vim mode
  */
 function toggleVim(tracker: IEditorTracker) {
   each(tracker.widgets, widget => {
-    widget.editor.setOption('keyMap', 'vim');
-  });
-}
-
-/**
- * Sets the editor to default editing mode
- */
-function toggleDefault(tracker: IEditorTracker) {
-  each(tracker.widgets, widget => {
-    widget.editor.setOption('keyMap', 'default');
+    widget.editor.setOption('keyMap',
+                            (widget.editor.getOption('keyMap')==='vim'
+                             ? 'default' : 'vim'));
   });
 }
 
@@ -235,7 +268,6 @@ function createMenu(app: JupyterLab, tracker: IEditorTracker): Menu {
   settings.addItem({ command: cmdIds.lineNumbers });
   settings.addItem({ command: cmdIds.lineWrap });
   settings.addItem({ command: cmdIds.matchBrackets });
-  settings.addItem({ command: cmdIds.defaultMode });
   settings.addItem({ command: cmdIds.vimMode });
 
   commands.addCommand(cmdIds.changeTheme, {
@@ -243,7 +275,7 @@ function createMenu(app: JupyterLab, tracker: IEditorTracker): Menu {
       return args['theme'] as string;
     },
     execute: args => {
-      let name: string = args['theme'] as string || 'default';
+      let name: string = args['theme'] as string || DEFAULT_CODEMIRROR_THEME;
       each(tracker.widgets, widget => {
         widget.editor.setOption('theme', name);
       });
@@ -251,8 +283,8 @@ function createMenu(app: JupyterLab, tracker: IEditorTracker): Menu {
   });
 
   [
-   'default', 'abcdef', 'base16-dark', 'base16-light', 'hopscotch',
-   'material', 'mbo', 'mdn-like', 'seti', 'the-matrix', 'default',
+   'jupyter', 'default', 'abcdef', 'base16-dark', 'base16-light',
+   'hopscotch', 'material', 'mbo', 'mdn-like', 'seti', 'the-matrix',
    'xq-light', 'zenburn'
   ].forEach(name => theme.addItem({
     command: 'editor:change-theme',

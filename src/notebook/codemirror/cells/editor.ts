@@ -111,6 +111,7 @@ class CodeMirrorCellEditorWidget extends CodeMirrorWidget implements ICellEditor
 
     this._model = model;
     doc.setValue(this._model.source || '');
+    doc.clearHistory();
     this._model.stateChanged.connect(this.onModelStateChanged, this);
   }
 
@@ -215,18 +216,10 @@ class CodeMirrorCellEditorWidget extends CodeMirrorWidget implements ICellEditor
    * Handle change events from the document.
    */
   protected onDocChange(doc: CodeMirror.Doc, change: CodeMirror.EditorChange): void {
-    if (change.origin === 'setValue') {
-      return;
-    }
     let model = this.model;
     let editor = this.editor;
     let oldValue = model.source;
     let newValue = doc.getValue();
-    if (oldValue === newValue) {
-      return;
-    }
-    model.source = newValue;
-
     let cursor = doc.getCursor();
     let line = cursor.line;
     let ch = cursor.ch;
@@ -234,6 +227,8 @@ class CodeMirrorCellEditorWidget extends CodeMirrorWidget implements ICellEditor
     let chWidth = editor.defaultCharWidth();
     let coords = editor.charCoords({ line, ch }, 'page') as ICoords;
     let position = editor.getDoc().indexFromPos({ line, ch });
+
+    model.source = newValue;
     this.textChanged.emit({
       line, ch, chHeight, chWidth, coords, position, oldValue, newValue
     });
@@ -257,14 +252,18 @@ class CodeMirrorCellEditorWidget extends CodeMirrorWidget implements ICellEditor
     }
 
     if (line === 0 && ch === 0 && event.keyCode === UP_ARROW) {
-      this.edgeRequested.emit('top');
-      return;
+        if (!event.shiftKey) {
+          this.edgeRequested.emit('top');
+        }
+        return;
     }
 
     let lastLine = doc.lastLine();
     let lastCh = doc.getLineHandle(lastLine).text.length;
     if (line === lastLine && ch === lastCh && event.keyCode === DOWN_ARROW) {
-      this.edgeRequested.emit('bottom');
+      if (!event.shiftKey) {
+        this.edgeRequested.emit('bottom');
+      }
       return;
     }
   }

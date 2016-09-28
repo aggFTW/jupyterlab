@@ -10,6 +10,10 @@ import {
 } from 'phosphor/lib/core/messaging';
 
 import {
+  defineSignal, ISignal
+} from 'phosphor/lib/core/signaling';
+
+import {
   Panel
 } from 'phosphor/lib/ui/panel';
 
@@ -22,8 +26,8 @@ import {
 } from '../rendermime';
 
 import {
-  ConsoleWidget
-} from './widget';
+  ConsoleContent
+} from './content';
 
 
 /**
@@ -44,14 +48,19 @@ class ConsolePanel extends Panel {
     super();
     this.addClass(PANEL_CLASS);
 
-    // Create console widget.
-    this._console = options.console || new ConsoleWidget({
+    // Create console content widget.
+    this._content = options.content || new ConsoleContent({
       session: options.session,
       rendermime: options.rendermime,
       renderer: options.renderer
     });
-    this.addWidget(this._console);
+    this.addWidget(this._content);
   }
+
+  /**
+   * A signal emitted when the console panel has been activated.
+   */
+  activated: ISignal<ConsolePanel, void>;
 
   /**
    * The console widget used by the panel.
@@ -59,8 +68,8 @@ class ConsolePanel extends Panel {
    * #### Notes
    * This is a read-only property.
    */
-  get content(): ConsoleWidget {
-    return this._console;
+  get content(): ConsoleContent {
+    return this._content;
   }
 
   /**
@@ -72,8 +81,8 @@ class ConsolePanel extends Panel {
     }
 
     // Dispose console widget.
-    this._console.dispose();
-    this._console = null;
+    this._content.dispose();
+    this._content = null;
 
     super.dispose();
   }
@@ -83,6 +92,7 @@ class ConsolePanel extends Panel {
    */
   protected onActivateRequest(msg: Message): void {
     this.content.activate();
+    this.activated.emit(void 0);
   }
 
   /**
@@ -109,8 +119,12 @@ class ConsolePanel extends Panel {
     });
   }
 
-  private _console: ConsoleWidget = null;
+  private _content: ConsoleContent = null;
 }
+
+
+// Define the signals for the `ConsolePanel` class.
+defineSignal(ConsolePanel.prototype, 'activated');
 
 
 /**
@@ -124,14 +138,14 @@ namespace ConsolePanel {
   export
   interface IOptions {
     /**
-     * The optional console widget instance to display in the console panel.
+     * The optional console content instance to display in the console panel.
      *
      * #### Notes
-     * If a console widget is passed in, its MIME renderer and session must
-     * match the values in the console panel options argument or it will result
-     * in undefined behavior.
+     * If a console content widget is passed in, its MIME renderer and session
+     * must match the values in the console panel options argument or it will
+     * result in undefined behavior.
      */
-    console?: ConsoleWidget;
+    content?: ConsoleContent;
 
     /**
      * The mime renderer for the console panel.
@@ -141,7 +155,7 @@ namespace ConsolePanel {
     /**
      * The renderer for a console widget.
      */
-    renderer?: ConsoleWidget.IRenderer;
+    renderer: ConsoleContent.IRenderer;
 
     /**
      * The session for the console panel.

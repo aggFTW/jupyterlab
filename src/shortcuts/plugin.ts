@@ -36,6 +36,11 @@ const SHORTCUTS = [
     keys: ['Accel Shift P']
   },
   {
+    command: 'editor:run-code',
+    selector: '.jp-EditorWidget',
+    keys: ['Shift Enter']
+  },
+  {
     command: 'file-browser:toggle',
     selector: 'body',
     keys: ['Accel Shift F']
@@ -98,7 +103,7 @@ const SHORTCUTS = [
   {
     command: 'notebook-cells:to-code',
     selector: '.jp-Notebook.jp-mod-commandMode',
-    keys: ['E']
+    keys: ['Y']
   },
   {
     command: 'notebook-cells:to-markdown',
@@ -173,7 +178,7 @@ const SHORTCUTS = [
   {
     command: 'notebook-cells:redo',
     selector: '.jp-Notebook.jp-mod-commandMode',
-    keys: ['Y'],
+    keys: ['Shift Z'],
   },
   {
     command: 'notebook-cells:cut',
@@ -251,19 +256,39 @@ const SHORTCUTS = [
     keys: ['Ctrl M']
   },
   {
-    command: 'console:execute',
+    command: 'console:run',
+    selector: '.jp-ConsolePanel',
+    keys: ['Enter']
+  },
+  {
+    command: 'console:run-forced',
     selector: '.jp-ConsolePanel',
     keys: ['Shift Enter']
   },
   {
-    command: 'console:dismiss-completion',
+    command: 'console:linebreak',
     selector: '.jp-ConsolePanel',
-    keys: ['Escape']
+    keys: ['Ctrl Enter']
   },
   {
     command: 'console:toggle-inspectors',
     selector: '.jp-ConsolePanel',
     keys: ['Accel I']
+  },
+  {
+    command: 'image-widget:zoom-in',
+    selector: '.jp-ImageWidget',
+    keys: ['=']
+  },
+  {
+    command: 'image-widget:zoom-out',
+    selector: '.jp-ImageWidget',
+    keys: ['-']
+  },
+  {
+    command: 'image-widget:reset-zoom',
+    selector: '.jp-ImageWidget',
+    keys: ['0']
   }
 ];
 

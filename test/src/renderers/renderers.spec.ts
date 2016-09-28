@@ -17,7 +17,7 @@ import {
 } from '../../../lib/sanitizer';
 
 
-const EXPECTED_MD = `<h1>Title first level</h1>\n<h2>Title second Level</h2>\n<h3>Title third level</h3>\n<h4>h4</h4>\n<h5>h5</h5>\n<h6>h6</h6>\n<h1>h1</h1>\n<h2>h2</h2>\n<h3>h3</h3>\n<h4>h4</h4>\n<h5>h6</h5>\n<p>This is just a sample paragraph<br>You can look at different level of nested unorderd list ljbakjn arsvlasc asc asc awsc asc ascd ascd ascd asdc asc</p>\n<ul>\n<li>level 1<ul>\n<li>level 2</li>\n<li>level 2</li>\n<li>level 2<ul>\n<li>level 3</li>\n<li>level 3<ul>\n<li>level 4<ul>\n<li>level 5<ul>\n<li>level 6</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n</li>\n<li>level 2</li>\n</ul>\n</li>\n<li>level 1</li>\n<li>level 1</li>\n<li>level 1<br>Ordered list</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1</li>\n<li>level 1</li>\n</ol>\n</li>\n</ol>\n</li>\n</ol>\n</li>\n</ol>\n</li>\n<li>level 1</li>\n<li>level 1<br>some Horizontal line</li>\n</ul>\n<hr>\n<h2>and another one</h2>\n<p>Colons can be used to align columns.</p>\n<table>\n<thead>\n<tr>\n<th>Tables</th>\n<th>Are</th>\n<th>Cool</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>col 3 is</td>\n<td>right-aligned</td>\n<td>1600</td>\n</tr>\n<tr>\n<td>col 2 is</td>\n<td>centered</td>\n<td>12</td>\n</tr>\n<tr>\n<td>zebra stripes</td>\n<td>are neat</td>\n<td>1</td>\n</tr>\n</tbody>\n</table>\n<p>There must be at least 3 dashes separating each header cell.<br>The outer pipes (|) are optional, and you don\'t need to make the<br>raw Markdown line up prettily. You can also use inline Markdown.</p>\n`;
+const EXPECTED_MD = `<h1>Title first level</h1>\n<h2>Title second Level</h2>\n<h3>Title third level</h3>\n<h4>h4</h4>\n<h5>h5</h5>\n<h6>h6</h6>\n<h1>h1</h1>\n<h2>h2</h2>\n<h3>h3</h3>\n<h4>h4</h4>\n<h5>h6</h5>\n<p>This is just a sample paragraph\nYou can look at different level of nested unorderd list ljbakjn arsvlasc asc asc awsc asc ascd ascd ascd asdc asc</p>\n<ul>\n<li>level 1<ul>\n<li>level 2</li>\n<li>level 2</li>\n<li>level 2<ul>\n<li>level 3</li>\n<li>level 3<ul>\n<li>level 4<ul>\n<li>level 5<ul>\n<li>level 6</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n</li>\n<li>level 2</li>\n</ul>\n</li>\n<li>level 1</li>\n<li>level 1</li>\n<li>level 1\nOrdered list</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1<ol>\n<li>level 1</li>\n<li>level 1</li>\n<li>level 1</li>\n</ol>\n</li>\n</ol>\n</li>\n</ol>\n</li>\n</ol>\n</li>\n<li>level 1</li>\n<li>level 1\nsome Horizontal line</li>\n</ul>\n<hr>\n<h2>and another one</h2>\n<p>Colons can be used to align columns.</p>\n<table>\n<thead>\n<tr>\n<th>Tables</th>\n<th>Are</th>\n<th>Cool</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>col 3 is</td>\n<td>right-aligned</td>\n<td>1600</td>\n</tr>\n<tr>\n<td>col 2 is</td>\n<td>centered</td>\n<td>12</td>\n</tr>\n<tr>\n<td>zebra stripes</td>\n<td>are neat</td>\n<td>1</td>\n</tr>\n</tbody>\n</table>\n<p>There must be at least 3 dashes separating each header cell.\nThe outer pipes (|) are optional, and you don\'t need to make the\nraw Markdown line up prettily. You can also use inline Markdown.</p>\n`;
 
 
 describe('renderers', () => {
@@ -34,12 +34,12 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `false`', () => {
         let t = new TextRenderer();
-        expect(t.sanitizable('text/plain')).to.be(false);
-        expect(t.sanitizable('application/vnd.jupyter.console-text')).to.be(false);
+        expect(t.isSanitizable('text/plain')).to.be(false);
+        expect(t.isSanitizable('application/vnd.jupyter.console-text')).to.be(false);
       });
 
     });
@@ -95,11 +95,11 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `false`', () => {
         let t = new LatexRenderer();
-        expect(t.sanitizable('text/latex')).to.be(false);
+        expect(t.isSanitizable('text/latex')).to.be(false);
       });
 
     });
@@ -137,11 +137,11 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `false`', () => {
         let t = new PDFRenderer();
-        expect(t.sanitizable('application/pdf')).to.be(false);
+        expect(t.isSanitizable('application/pdf')).to.be(false);
       });
 
     });
@@ -158,10 +158,13 @@ describe('renderers', () => {
     describe('#render()', () => {
 
       it('should render the correct HTML', () => {
-        let source = "I don't have a b64'd PDF";
+        let source = 'test';
         let t = new PDFRenderer();
         let w = t.render({ mimetype: 'application/pdf', source });
-        expect(w.node.innerHTML.indexOf('data:application/pdf')).to.not.be(-1);
+        let node = w.node.firstChild as HTMLAnchorElement;
+        expect(node.localName).to.be('a');
+        expect(node.target).to.be('_blank');
+        expect(node.href).to.be('data:application/pdf;base64,test');
       });
 
     });
@@ -180,11 +183,11 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `false`', () => {
         let t = new JavascriptRenderer();
-        expect(t.sanitizable('text/javascript')).to.be(false);
+        expect(t.isSanitizable('text/javascript')).to.be(false);
       });
 
     });
@@ -232,11 +235,11 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `true`', () => {
         let t = new SVGRenderer();
-        expect(t.sanitizable('image/svg+xml')).to.be(true);
+        expect(t.isSanitizable('image/svg+xml')).to.be(true);
       });
 
     });
@@ -284,11 +287,11 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `true`', () => {
         let t = new MarkdownRenderer();
-        expect(t.sanitizable('text/markdown')).to.be(true);
+        expect(t.isSanitizable('text/markdown')).to.be(true);
       });
 
     });
@@ -351,11 +354,11 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `true`', () => {
         let t = new HTMLRenderer();
-        expect(t.sanitizable('text/html')).to.be(true);
+        expect(t.isSanitizable('text/html')).to.be(true);
       });
 
     });
@@ -412,11 +415,11 @@ describe('renderers', () => {
 
     });
 
-    describe('#sanitizable()', () => {
+    describe('#isSanitizable()', () => {
 
       it('should be `false`', () => {
         let t = new ImageRenderer();
-        expect(t.sanitizable('image/png')).to.be(false);
+        expect(t.isSanitizable('image/png')).to.be(false);
       });
 
     });

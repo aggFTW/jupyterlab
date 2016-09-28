@@ -60,6 +60,7 @@ import {
 } from 'phosphor/lib/ui/widget';
 
 import 'jupyterlab/lib/default-theme/index.css';
+import '../index.css';
 
 
 let NOTEBOOK = 'test.ipynb';

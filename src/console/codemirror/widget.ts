@@ -10,6 +10,10 @@ import {
 } from '../../notebook/cells/widget';
 
 import {
+  CodeMirrorCodeCellWidgetRenderer
+} from '../../notebook/codemirror/cells/widget';
+
+import {
   CodeMirrorNotebookRenderer
 } from '../../notebook/codemirror/notebook/widget';
 
@@ -18,15 +22,15 @@ import {
 } from '../../rendermime';
 
 import {
-  ConsoleWidget
-} from '../widget';
+  ConsoleContent
+} from '../content';
 
 
 /**
  * A code mirror renderer for a console.
  */
 export
-class CodeMirrorConsoleRenderer implements ConsoleWidget.IRenderer {
+class CodeMirrorConsoleRenderer implements ConsoleContent.IRenderer {
   /**
    * Create a new banner widget.
    */
@@ -44,7 +48,19 @@ class CodeMirrorConsoleRenderer implements ConsoleWidget.IRenderer {
   createPrompt(rendermime: RenderMime): CodeCellWidget {
     let widget = new CodeCellWidget({
       rendermime,
-      renderer: CodeMirrorNotebookRenderer.defaultCodeCellRenderer
+      renderer: CodeMirrorConsoleRenderer.defaultCodeCellRenderer
+    });
+    widget.model = new CodeCellModel();
+    return widget;
+  }
+
+  /**
+   * Create a new code cell widget for an input from a foreign session.
+   */
+  createForeignCell(rendermime: RenderMime): CodeCellWidget {
+    let widget = new CodeCellWidget({
+      rendermime,
+      renderer: CodeMirrorConsoleRenderer.defaultCodeCellRenderer
     });
     widget.model = new CodeCellModel();
     return widget;
@@ -62,4 +78,19 @@ namespace CodeMirrorConsoleRenderer {
    */
   export
   const defaultRenderer = new CodeMirrorConsoleRenderer();
+
+
+  /**
+   * A default code mirror renderer for a code cell editor.
+   */
+  export
+  const defaultCodeCellRenderer = new CodeMirrorCodeCellWidgetRenderer({
+    editorInitializer: (editor) => {
+      editor.editor.setOption('matchBrackets', false);
+      editor.editor.setOption('autoCloseBrackets', false);
+      editor.editor.setOption('extraKeys', {
+        Enter: function() { /* no-op */ }
+      });
+    }
+  });
 }

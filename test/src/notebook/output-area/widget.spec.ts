@@ -188,11 +188,6 @@ describe('notebook/output-area/widget', () => {
         expect(widget.rendermime).to.be(rendermime);
       });
 
-      it('should be read-only', () => {
-        let widget = new OutputAreaWidget({ rendermime });
-        expect(() => { widget.rendermime = null; }).to.throwError();
-      });
-
     });
 
     describe('#renderer', () => {
@@ -201,11 +196,6 @@ describe('notebook/output-area/widget', () => {
         let renderer = new OutputAreaWidget.Renderer();
         let widget = new OutputAreaWidget({ rendermime, renderer });
         expect(widget.renderer).to.be(renderer);
-      });
-
-      it('should be read-only', () => {
-        let widget = new OutputAreaWidget({ rendermime });
-        expect(() => { widget.renderer = null; }).to.throwError();
       });
 
     });
@@ -393,11 +383,6 @@ describe('notebook/output-area/widget', () => {
         expect(widget.prompt.hasClass('jp-Output-prompt')).to.be(true);
       });
 
-      it('should be read-only', () => {
-        let widget = new OutputWidget({ rendermime });
-        expect(() => { widget.prompt = null; }).to.throwError();
-      });
-
     });
 
     describe('#output', () => {
@@ -407,18 +392,13 @@ describe('notebook/output-area/widget', () => {
         expect(widget.output.hasClass('jp-Output-result')).to.be(true);
       });
 
-      it('should be read-only', () => {
-        let widget = new OutputWidget({ rendermime });
-        expect(() => { widget.output = null; }).to.throwError();
-      });
-
     });
 
     describe('#clear()', () => {
 
       it('should clear the current output', () => {
         let widget = new OutputWidget({ rendermime });
-        widget.render(DEFAULT_OUTPUTS[0], true);
+        widget.render({ output: DEFAULT_OUTPUTS[0], trusted: true });
         let output = widget.output;
         widget.clear();
         expect(widget.output).to.not.be(output);
@@ -433,7 +413,7 @@ describe('notebook/output-area/widget', () => {
         let widget = new OutputWidget({ rendermime });
         for (let i = 0; i < DEFAULT_OUTPUTS.length; i++) {
           let output = DEFAULT_OUTPUTS[i];
-          widget.render(output, true);
+          widget.render({ output, trusted: true });
         }
       });
 
@@ -441,7 +421,7 @@ describe('notebook/output-area/widget', () => {
         let widget = new OutputWidget({ rendermime });
         for (let i = 0; i < DEFAULT_OUTPUTS.length; i++) {
           let output = DEFAULT_OUTPUTS[i];
-          widget.render(output, false);
+          widget.render({ output, trusted: false });
         }
       });
 

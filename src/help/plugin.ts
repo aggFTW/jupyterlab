@@ -2,6 +2,10 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
+  getBaseUrl
+} from 'jupyter-js-services/lib/utils';
+
+import {
   Menu
 } from 'phosphor/lib/ui/menu';
 
@@ -98,7 +102,8 @@ export
 const helpHandlerExtension: JupyterLabPlugin<void> = {
   id: 'jupyter.extensions.help-handler',
   requires: [IMainMenu, ICommandPalette],
-  activate: activateHelpHandler
+  activate: activateHelpHandler,
+  autoStart: true
 };
 
 
@@ -116,6 +121,7 @@ function activateHelpHandler(app: JupyterLab, mainMenu: IMainMenu, palette: ICom
   iframe.id = 'help-doc';
 
   COMMANDS.forEach(command => app.commands.addCommand(command.id, {
+    label: command.text,
     execute: () => {
       Private.attachHelp(app, iframe);
       Private.showHelp(app, iframe);
@@ -138,6 +144,15 @@ function activateHelpHandler(app: JupyterLab, mainMenu: IMainMenu, palette: ICom
     category: 'Help'
   }));
 
+  let openClassicNotebookId = 'classic-notebook:open';
+  app.commands.addCommand(openClassicNotebookId, {
+    label: 'Open Classic Notebook',
+    execute: () => {
+      window.open(getBaseUrl()+'tree');
+    }
+  });
+  palette.addItem({ command: openClassicNotebookId, category: 'Help'});
+
   let menu = Private.createMenu(app);
   mainMenu.addMenu(menu, {});
 
@@ -159,6 +174,7 @@ namespace Private {
     menu.title.label = 'Help';
     menu.addItem({ command: 'about-jupyterlab:show' });
     menu.addItem({ command: 'faq-jupyterlab:show' });
+    menu.addItem({ command: 'classic-notebook:open'})
 
     COMMANDS.forEach(item => menu.addItem({ command: item.id }));
     return menu;

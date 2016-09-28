@@ -372,12 +372,10 @@ class StaticNotebook extends Widget {
     let widget: BaseCellWidget;
     switch (cell.type) {
     case 'code':
-      let codeFactory = this._renderer.createCodeCell;
-      widget = codeFactory(cell as CodeCellModel, this._rendermime);
+      widget = this._renderer.createCodeCell(cell as CodeCellModel, this._rendermime);
       break;
     case 'markdown':
-      let mdFactory = this._renderer.createMarkdownCell;
-      widget = mdFactory(cell as MarkdownCellModel, this._rendermime);
+      widget = this._renderer.createMarkdownCell(cell as MarkdownCellModel, this._rendermime);
       break;
     default:
       widget = this._renderer.createRawCell(cell as RawCellModel);
@@ -662,6 +660,9 @@ class Notebook extends StaticNotebook {
     }
     if (newValue === oldValue) {
       return;
+    }
+    if (this.mode === 'edit' && cell instanceof MarkdownCellWidget) {
+      cell.rendered = false;
     }
     this.stateChanged.emit({ name: 'activeCellIndex', oldValue, newValue });
   }
@@ -976,15 +977,15 @@ class Notebook extends StaticNotebook {
     let i = this._findCell(target);
     if (i !== -1) {
       let widget = this.childAt(i);
-      // If the editor has focus, ensure edit mode.
+      // If the editor itself does not have focus, ensure command mode.
       if (widget.editor.node.contains(target)) {
-        this.mode = 'edit';
-      // Otherwise, another control within the cell has focus,
-      // ensure command mode.
-      } else {
         this.mode = 'command';
       }
       this.activeCellIndex = i;
+      // If the editor has focus, ensure edit mode.
+      if (widget.editor.node.contains(target)) {
+        this.mode = 'edit';
+      }
     } else {
       // No cell has focus, ensure command mode.
       this.mode = 'command';
@@ -1012,6 +1013,7 @@ class Notebook extends StaticNotebook {
     let widget = layout.widgets.at(i) as MarkdownCellWidget;
     if (cell.type === 'markdown') {
       widget.rendered = false;
+      widget.activate();
       return;
     } else if (target.localName === 'img') {
       target.classList.toggle(UNCONFINED_CLASS);

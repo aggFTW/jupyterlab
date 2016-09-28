@@ -32,7 +32,8 @@ from distutils import log
 log.set_verbosity(log.DEBUG)
 log.info('setup.py entered')
 
-LONG_DESCRIPTION = 'This is a very early pre-alpha developer preview. It is not ready for general usage yet.'
+DESCRIPTION = 'An alpha preview of the JupyterLab notebook server extension.'
+LONG_DESCRIPTION = 'This is an alpha preview of JupyterLab. It is not ready for general usage yet. Development happens on https://github.com/jupyter/jupyterlab, with chat on https://gitter.im/jupyter/jupyterlab.'
 
 def js_prerelease(command, strict=False):
     """decorator for building minified js/css prior to another command"""
@@ -81,11 +82,10 @@ class NPM(Command):
 
     user_options = []
 
-    node_modules = os.path.join(here, 'node_modules')
-    jlab_node_modules = os.path.join(extension_root, 'node_modules')
-
+    # Representative files that should exist after a successful build
     targets = [
-        os.path.join(here, 'jupyterlab', 'build', 'bundle.js'),
+        os.path.join(here, 'jupyterlab', 'build', 'main.css'),
+        os.path.join(here, 'jupyterlab', 'build', 'main.bundle.js'),
     ]
 
     def initialize_options(self):
@@ -104,14 +104,12 @@ class NPM(Command):
     def run(self):
         has_npm = self.has_npm()
         if not has_npm:
-            log.error("`npm` unavailable.  If you're running this command using sudo, make sure `npm` is available to sudo")
-        if not os.path.exists(self.node_modules):
-            log.info("Installing build dependencies with npm.  This may take a while...")
-            run('npm install', cwd=here)
-        if not os.path.exists(self.jlab_node_modules):
-            log.info("Installing extension build dependencies with npm.  This may take a while...")
-            run('npm install', cwd=extension_root)
-        run('npm run build:serverextension')
+            log.error("`npm` unavailable. If you're running this command using sudo, make sure `npm` is available to sudo")
+        log.info("Installing build dependencies with npm. This may take a while...")
+        run('npm install', cwd=here)
+        log.info("Installing extension build dependencies with npm. This may take a while...")
+        run('npm install', cwd=extension_root)
+        run('npm run build:all')
 
         for t in self.targets:
             if not os.path.exists(t):
@@ -130,7 +128,7 @@ with open(os.path.join(here, 'package.json')) as f:
 setup_args = {
     'name': 'jupyterlab',
     'version': packagejson['version'],
-    'description': 'A pre-alpha Jupyter lab environment notebook server extension.',
+    'description': DESCRIPTION,
     'long_description': LONG_DESCRIPTION,
     'License': 'BSD',
     'include_package_data': True,
@@ -151,11 +149,12 @@ setup_args = {
     'entry_points': {
         'console_scripts': [
             'jupyter-lab = jupyterlab.labapp:main',
+            'jupyter-labextension = jupyterlab.labextensions:main',
         ]
     },
     'author': 'Jupyter Development Team',
     'author_email': 'jupyter@googlegroups.com',
-    'url': 'http://jupyter.org',
+    'url': 'https://github.com/jupyter/jupyterlab',
     'keywords': ['ipython', 'jupyter', 'Web'],
     'classifiers': [
         'Development Status :: 2 - Pre-Alpha',

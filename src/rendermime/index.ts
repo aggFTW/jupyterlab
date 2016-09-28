@@ -2,6 +2,10 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
+  JSONObject
+} from 'phosphor/lib/algorithm/json';
+
+import {
   Token
 } from 'phosphor/lib/core/token';
 
@@ -35,11 +39,16 @@ interface IRenderMime extends RenderMime {}
  *
  * #### Notes
  * When rendering a mimebundle, a mimetype is selected from the mimetypes by
- * searching through the `this.order` list. The first mimetype found in the bundle
- * determines the renderer that will be used.
+ * searching through the `this.order` list. The first mimetype found in the
+ * bundle determines the renderer that will be used.
  *
- * You can add a renderer by adding it to the `renderers` object and registering
- * the mimetype in the `order` array.
+ * You can add a renderer by adding it to the `renderers` object and
+ * registering the mimetype in the `order` array.
+ *
+ * Untrusted bundles are handled differently from trusted ones.  Untrusted
+ * bundles will only render outputs that can be rendered "safely"
+ * (see [[RenderMime.IRenderer.isSafe]]) or can be "sanitized"
+ * (see [[RenderMime.IRenderer.isSanitizable]]).
  */
 export
 class RenderMime {
@@ -85,19 +94,26 @@ class RenderMime {
    * @param bundle - the mimebundle to render.
    *
    * @param trusted - whether the bundle is trusted.
+   *
+   * #### Notes
+   * We select the preferred mimetype in bundle based on whether the output is
+   * trusted (see [[preferredMimetype]]), and then pass a sanitizer to the
+   * renderer if the output should be sanitized.
    */
-  render(bundle: RenderMime.MimeMap<string>, trusted=false): Widget {
+  render(options: RenderMime.IRenderOptions<string>): Widget {
+    let { trusted, bundle, injector } = options;
     let mimetype = this.preferredMimetype(bundle, trusted);
     if (!mimetype) {
       return void 0;
     }
-    let options = {
+    let rendererOptions = {
       mimetype,
       source: bundle[mimetype],
+      injector,
       resolver: this._resolver,
       sanitizer: trusted ? null : this._sanitizer
     };
-    return this._renderers[mimetype].render(options);
+    return this._renderers[mimetype].render(rendererOptions);
   }
 
   /**
@@ -108,14 +124,15 @@ class RenderMime {
    * @param trusted - whether the bundle is trusted.
    *
    * #### Notes
-   * If the bundle is not trusted, the highest preference
-   * mimetype that is sanitizable or safe will be chosen.
+   * For untrusted bundles, only select mimetypes that can be rendered
+   * "safely"  (see [[RenderMime.IRenderer.isSafe]]) or can  be "sanitized"
+   * (see [[RenderMime.IRenderer.isSanitizable]]).
    */
   preferredMimetype(bundle: RenderMime.MimeMap<string>, trusted=false): string {
     for (let m of this.order) {
       if (m in bundle) {
         let renderer = this._renderers[m];
-        if (trusted || renderer.isSafe(m) || renderer.sanitizable(m)) {
+        if (trusted || renderer.isSafe(m) || renderer.isSanitizable(m)) {
           return m;
         }
       }
@@ -225,27 +242,59 @@ namespace RenderMime {
 
     /**
      * Whether the input is safe without sanitization.
+     *
+     * #### Notes
+     * A `safe` output is one that cannot pose a security threat
+     * when added to the DOM, for example when text is added with
+     * `.textContent`.
      */
     isSafe(mimetype: string): boolean;
 
     /**
      * Whether the input can safely sanitized for a given mimetype.
+     *
+     * #### Notes
+     * A `sanitizable` output is one that could pose a security threat
+     * if not properly sanitized, but can be passed through an html sanitizer
+     * to render it safe.  These are typically added to the DOM using
+     * `.innerHTML` or equivalent.
      */
-    sanitizable(mimetype: string): boolean;
+    isSanitizable(mimetype: string): boolean;
 
     /**
      * Render the transformed mime bundle.
      *
      * @param options - The options used for rendering.
      */
-    render(options: IRenderOptions): Widget;
+    render(options: IRendererOptions<string | JSONObject>): Widget;
+  }
+
+  /**
+   * The options used to render a mime map.
+   */
+  export
+  interface IRenderOptions<T extends string | JSONObject> {
+    /**
+     * The mime bundle to render.
+     */
+    bundle: MimeMap<T>;
+
+    /**
+     * A callback that can be used to add a mimetype to the original bundle.
+     */
+    injector?: (mimetype: string, value: string | JSONObject) => void;
+
+    /**
+     * Whether the mime bundle is trusted (the default is False).
+     */
+    trusted?: boolean;
   }
 
   /**
    * The options used to transform or render mime data.
    */
   export
-  interface IRenderOptions {
+  interface IRendererOptions<T extends string | JSONObject> {
     /**
      * The mimetype.
      */
@@ -254,7 +303,12 @@ namespace RenderMime {
     /**
      * The source data.
      */
-    source: string;
+    source: T;
+
+    /**
+     * A callback that can be used to add a mimetype to the original bundle.
+     */
+    injector?: (mimetype: string, value: string | JSONObject) => void;
 
     /**
      * An optional url resolver.
@@ -262,7 +316,7 @@ namespace RenderMime {
     resolver?: IResolver;
 
     /**
-     * An optional html santizer.
+     * An optional html sanitizer.
      *
      * If given, should be used to sanitize raw html.
      */

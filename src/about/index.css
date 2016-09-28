@@ -1,3 +1,11 @@
+/*-----------------------------------------------------------------------------
+| Copyright (c) Jupyter Development Team.
+| Distributed under the terms of the Modified BSD License.
+|----------------------------------------------------------------------------*/
+#about-jupyterlab {
+    padding: 2em;
+}
+
 #about {
   position: absolute;
   top: 0;
@@ -315,7 +323,7 @@
 
 #about .jp-About-hero-notebook {
   display: inline-block;
-  background-image: url(images/notebook.svg);
+  background-image: url(images/jl-About-hero-nb.svg);
   width: 31px;
   height: 40px;
   margin: 0 30px;

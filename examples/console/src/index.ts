@@ -6,6 +6,10 @@ import {
 } from 'jupyterlab/lib/console';
 
 import {
+  CodeMirrorConsoleRenderer
+} from 'jupyterlab/lib/console/codemirror/widget';
+
+import {
   startNewSession, findSessionByPath, connectToSession, ISession
 } from 'jupyter-js-services';
 
@@ -43,6 +47,7 @@ import {
 } from 'phosphor/lib/ui/widget';
 
 import 'jupyterlab/lib/default-theme/index.css';
+import '../index.css';
 
 let TITLE = 'Console';
 
@@ -102,8 +107,9 @@ function startApp(session: ISession) {
   }
   let sanitizer = defaultSanitizer;
   let rendermime = new RenderMime({ renderers, order, sanitizer });
+  let renderer = CodeMirrorConsoleRenderer.defaultRenderer;
 
-  let consolePanel = new ConsolePanel({ session, rendermime });
+  let consolePanel = new ConsolePanel({ session, renderer, rendermime });
   consolePanel.title.label = TITLE;
 
   let palette = new CommandPalette({ commands, keymap });
@@ -119,38 +125,41 @@ function startApp(session: ISession) {
   panel.addWidget(consolePanel);
   window.onresize = () => { panel.update(); };
 
-  commands.addCommand('console-clear', {
+  let selector = '.jp-ConsolePanel';
+  let category = 'Console';
+  let command: string;
+
+
+  command = 'console:clear';
+  commands.addCommand(command, {
     label: 'Clear',
     execute: () => { consolePanel.content.clear(); }
   });
-  commands.addCommand('console-execute', {
+  palette.addItem({ command, category });
+
+  command = 'console:execute';
+  commands.addCommand(command, {
     label: 'Execute Prompt',
     execute: () => { consolePanel.content.execute(); }
   });
-  commands.addCommand('console-dismiss-completion', {
-    execute: () => { consolePanel.content.dismissCompletion(); }
-  });
-  palette.addItem({ command: 'console-clear', category: 'Console' });
-  palette.addItem({ command: 'console-execute', category: 'Console' });
+  palette.addItem({ command, category });
+  keymap.addBinding({ command,  selector,  keys: ['Enter'] });
 
-  let bindings = [
-    {
-      selector: '.jp-ConsolePanel',
-      keys: ['Accel R'],
-      command: 'console-clear'
-    },
-    {
-      selector: '.jp-ConsolePanel',
-      keys: ['Shift Enter'],
-      command: 'console-execute'
-    },
-    {
-      selector: 'body',
-      keys: ['Escape'],
-      command: 'console-dismiss-completion'
-    }
-  ];
-  bindings.forEach(binding => keymap.addBinding(binding));
+  command = 'console:execute-forced';
+  commands.addCommand(command, {
+    label: 'Execute Cell (forced)',
+    execute: () => { consolePanel.content.execute(true); }
+  });
+  palette.addItem({ command, category });
+  keymap.addBinding({ command,  selector,  keys: ['Shift Enter'] });
+
+  command = 'console:linebreak';
+  commands.addCommand(command, {
+    label: 'Insert Line Break',
+    execute: () => { consolePanel.content.insertLinebreak(); }
+  });
+  palette.addItem({ command, category });
+  keymap.addBinding({ command,  selector,  keys: ['Ctrl Enter'] });
 }
 
 window.onload = main;

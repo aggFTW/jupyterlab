@@ -218,12 +218,14 @@ describe('notebook/notebook/actions', () => {
         NotebookActions.mergeCells(widget);
         cell = widget.activeCell as MarkdownCellWidget;
         expect(cell.rendered).to.be(false);
+        expect(widget.mode).to.be('command');
       });
 
       it('should preserve the cell type of the active cell', () => {
         NotebookActions.changeCellType(widget, 'raw');
         NotebookActions.mergeCells(widget);
         expect(widget.activeCell).to.be.a(RawCellWidget);
+        expect(widget.mode).to.be('command');
       });
 
     });
@@ -264,13 +266,17 @@ describe('notebook/notebook/actions', () => {
         expect(widget.activeCellIndex).to.be(widget.childCount() - 1);
       });
 
-      it('should add a code cell if all cells are deleted', () => {
+      it('should add a code cell if all cells are deleted', (done) => {
         for (let i = 0; i < widget.childCount(); i++) {
           widget.select(widget.childAt(i));
         }
         NotebookActions.deleteCells(widget);
-        expect(widget.childCount()).to.be(1);
-        expect(widget.activeCell).to.be.a(CodeCellWidget);
+        requestAnimationFrame(() => {
+          expect(widget.childCount()).to.be(1);
+          expect(widget.activeCell).to.be.a(CodeCellWidget);
+          done();
+        });
+
       });
 
       it('should be undo-able', () => {
@@ -960,6 +966,74 @@ describe('notebook/notebook/actions', () => {
       it('should activate the cell', () => {
         NotebookActions.extendSelectionBelow(widget);
         expect(widget.activeCellIndex).to.be(1);
+      });
+
+    });
+
+    describe('#moveUp()', () => {
+
+      it('should move the selected cells up', () => {
+        widget.activeCellIndex = 2;
+        NotebookActions.extendSelectionAbove(widget);
+        NotebookActions.moveUp(widget);
+        expect(widget.isSelected(widget.childAt(0))).to.be(true);
+        expect(widget.isSelected(widget.childAt(1))).to.be(true);
+        expect(widget.isSelected(widget.childAt(2))).to.be(false);
+        expect(widget.activeCellIndex).to.be(0);
+      });
+
+      it('should be a no-op if there is no model', () => {
+        widget.model = null;
+        NotebookActions.moveUp(widget);
+        expect(widget.activeCellIndex).to.be(-1);
+      });
+
+      it('should not wrap around to the bottom', () => {
+        expect(widget.activeCellIndex).to.be(0);
+        NotebookActions.moveUp(widget);
+        expect(widget.activeCellIndex).to.be(0);
+      });
+
+      it('should be undo-able', () => {
+        widget.activeCellIndex++;
+        let source = widget.activeCell.model.source;
+        NotebookActions.moveUp(widget);
+        expect(widget.model.cells.get(0).source).to.be(source);
+        NotebookActions.undo(widget);
+        expect(widget.model.cells.get(1).source).to.be(source);
+      });
+
+    });
+
+    describe('#moveDown()', () => {
+
+      it('should move the selected cells down', () => {
+        NotebookActions.extendSelectionBelow(widget);
+        NotebookActions.moveDown(widget);
+        expect(widget.isSelected(widget.childAt(0))).to.be(false);
+        expect(widget.isSelected(widget.childAt(1))).to.be(true);
+        expect(widget.isSelected(widget.childAt(2))).to.be(true);
+        expect(widget.activeCellIndex).to.be(2);
+      });
+
+      it('should be a no-op if there is no model', () => {
+        widget.model = null;
+        NotebookActions.moveUp(widget);
+        expect(widget.activeCellIndex).to.be(-1);
+      });
+
+      it('should not wrap around to the top', () => {
+        widget.activeCellIndex = widget.childCount() - 1;
+        NotebookActions.moveDown(widget);
+        expect(widget.activeCellIndex).to.be(widget.childCount() - 1);
+      });
+
+      it('should be undo-able', () => {
+        let source = widget.activeCell.model.source;
+        NotebookActions.moveDown(widget);
+        expect(widget.model.cells.get(1).source).to.be(source);
+        NotebookActions.undo(widget);
+        expect(widget.model.cells.get(0).source).to.be(source);
       });
 
     });

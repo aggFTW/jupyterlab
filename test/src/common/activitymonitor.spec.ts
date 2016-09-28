@@ -106,7 +106,6 @@ describe('common/activitymonitor', () => {
           let now = (new Date()).getTime();
           let delta = now - start;
           if (delta > timeout) {
-            console.log('delta', delta);
             expect(called).to.be(true);
             expect(emission).to.be(secondEmission);
             done();
@@ -166,11 +165,6 @@ describe('common/activitymonitor', () => {
         expect(monitor.isDisposed).to.be(false);
         monitor.dispose();
         expect(monitor.isDisposed).to.be(true);
-      });
-
-      it('should be read-only', () => {
-        let monitor = new ActivityMonitor<TestObject, number>({ signal });
-        expect(() => { monitor.isDisposed = false; }).to.throwError();
       });
 
     });

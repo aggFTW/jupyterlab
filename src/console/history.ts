@@ -6,6 +6,10 @@ import {
 } from 'jupyter-js-services';
 
 import {
+  Vector
+} from 'phosphor/lib/collections/vector';
+
+import {
   IDisposable
 } from 'phosphor/lib/core/disposable';
 
@@ -60,6 +64,16 @@ interface IConsoleHistory extends IDisposable {
 export
 class ConsoleHistory implements IConsoleHistory {
   /**
+   * Construct a new console history object.
+   */
+  constructor(options?: ConsoleHistory.IOptions) {
+    this._history = new Vector<string>();
+    if (options && options.kernel) {
+      this.kernel = options.kernel;
+    }
+  }
+
+  /**
    * Get whether the console history manager is disposed.
    *
    * #### Notes
@@ -79,46 +93,15 @@ class ConsoleHistory implements IConsoleHistory {
     if (newValue === this._kernel) {
       return;
     }
-    let contents = Private.initialRequest;
+
     this._kernel = newValue;
-    this._kernel.history(contents).then((value: KernelMessage.IHistoryReplyMsg) => {
-      this._history = [];
-      let last = '';
-      let current = '';
-      for (let i = 0; i < value.content.history.length; i++) {
-        // History entries have the shape:
-        // [session: number, line: number, input: string]
-        // Contiguous duplicates are stripped out of the API response.
-        current = (value.content.history[i] as string[])[2];
-        if (current !== last) {
-          this._history.push(last = current);
-        }
-      }
-      // Reset the history navigation cursor back to the bottom.
-      this._cursor = this._history.length;
-    });
 
-  }
-
-  /**
-   * Construct a new console history object.
-   */
-  constructor(kernel: IKernel) {
-    this._history = [];
-    if (kernel) {
-      this.kernel = kernel;
+    if (!this._kernel) {
+      this._history = new Vector<string>();
+      return;
     }
-  }
 
-  /**
-   * Get the previous item in the console history.
-   *
-   * @returns A Promise for console command text or `undefined` if unavailable.
-   */
-  back(): Promise<string> {
-    let content = this._history[--this._cursor];
-    this._cursor = Math.max(0, this._cursor);
-    return Promise.resolve(content);
+    this._kernel.history(Private.initialRequest).then(v => this.onHistory(v));
   }
 
   /**
@@ -129,8 +112,18 @@ class ConsoleHistory implements IConsoleHistory {
       return;
     }
     clearSignalData(this);
-    this._history.length = 0;
     this._history = null;
+  }
+
+  /**
+   * Get the previous item in the console history.
+   *
+   * @returns A Promise for console command text or `undefined` if unavailable.
+   */
+  back(): Promise<string> {
+    let content = this._history.at(--this._cursor);
+    this._cursor = Math.max(0, this._cursor);
+    return Promise.resolve(content);
   }
 
   /**
@@ -139,7 +132,7 @@ class ConsoleHistory implements IConsoleHistory {
    * @returns A Promise for console command text or `undefined` if unavailable.
    */
   forward(): Promise<string> {
-    let content = this._history[++this._cursor];
+    let content = this._history.at(++this._cursor);
     this._cursor = Math.min(this._history.length, this._cursor);
     return Promise.resolve(content);
   }
@@ -157,16 +150,58 @@ class ConsoleHistory implements IConsoleHistory {
    * implemented this way.
    */
   push(item: string): void {
-    if (item && item !== this._history[this._history.length - 1]) {
-      this._history.push(item);
+    if (item && item !== this._history.back) {
+      this._history.pushBack(item);
+    }
+    // Reset the history navigation cursor back to the bottom.
+    this._cursor = this._history.length;
+  }
+
+  /**
+   * Populate the history collection on history reply from a kernel.
+   *
+   * @param value The kernel message history reply.
+   *
+   * #### Notes
+   * History entries have the shape:
+   * [session: number, line: number, input: string]
+   * Contiguous duplicates are stripped out of the API response.
+   */
+  protected onHistory(value: KernelMessage.IHistoryReplyMsg): void {
+    this._history = new Vector<string>();
+    let last = '';
+    let current = '';
+    for (let i = 0; i < value.content.history.length; i++) {
+      current = (value.content.history[i] as string[])[2];
+      if (current !== last) {
+        this._history.pushBack(last = current);
+      }
     }
     // Reset the history navigation cursor back to the bottom.
     this._cursor = this._history.length;
   }
 
   private _cursor = 0;
-  private _history: string[] = null;
+  private _history: Vector<string> = null;
   private _kernel: IKernel = null;
+}
+
+
+/**
+ * A namespace for ConsoleHistory statics.
+ */
+export
+namespace ConsoleHistory {
+  /**
+   * The initialization options for a console history object.
+   */
+  export
+  interface IOptions {
+    /**
+     * The kernel instance to query for history.
+     */
+    kernel?: IKernel;
+  }
 }
 
 

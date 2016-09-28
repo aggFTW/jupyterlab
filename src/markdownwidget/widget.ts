@@ -18,6 +18,10 @@ import {
 } from 'phosphor/lib/ui/widget';
 
 import {
+  ActivityMonitor
+} from '../common/activitymonitor';
+
+import {
   IDocumentModel, IDocumentContext, ABCWidgetFactory
 } from '../docregistry';
 
@@ -30,6 +34,11 @@ import {
  * The class name added to a Jupyter MarkdownWidget
  */
 const MD_CLASS = 'jp-MarkdownWidget';
+
+/**
+ * The timeout to wait for change activity to have ceased before rendering.
+ */
+const RENDER_TIMEOUT = 1000;
 
 
 /**
@@ -53,7 +62,20 @@ class MarkdownWidget extends Widget {
       this.title.label = path.split('/').pop();
     });
 
-    context.model.contentChanged.connect(() => this.update());
+    // Throttle the rendering rate of the widget.
+    this._monitor = new ActivityMonitor({
+      signal: context.model.contentChanged,
+      timeout: RENDER_TIMEOUT
+    });
+    this._monitor.activityStopped.connect(() => { this.update(); });
+  }
+
+  /**
+   * Dispose of the resources held by the widget.
+   */
+  dispose(): void {
+    this._monitor.dispose();
+    super.dispose();
   }
 
   /**
@@ -70,15 +92,17 @@ class MarkdownWidget extends Widget {
     let context = this._context;
     let model = context.model;
     let layout = this.layout as PanelLayout;
-    let widget = this._rendermime.render({ 'text/markdown': model.toString() });
+    let bundle = { 'text/markdown': model.toString() };
+    let widget = this._rendermime.render({ bundle });
     if (layout.widgets.length) {
       layout.widgets.at(0).dispose();
     }
     layout.addWidget(widget);
   }
 
-  private _rendermime: RenderMime = null;
   private _context: IDocumentContext<IDocumentModel> = null;
+  private _monitor: ActivityMonitor<any, any> = null;
+  private _rendermime: RenderMime = null;
 }
 
 

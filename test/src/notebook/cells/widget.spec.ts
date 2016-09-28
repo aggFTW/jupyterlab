@@ -55,7 +55,7 @@ const INPUT_CLASS = 'jp-InputArea';
 
 const RENDERED_CLASS = 'jp-mod-rendered';
 
-const PROMPT_CLASS = 'jp-InputArea-prompt';
+const PROMPT_CLASS = 'jp-Cell-prompt';
 
 const rendermime = defaultRenderMime();
 
@@ -239,13 +239,6 @@ describe('notebook/cells/widget', () => {
           renderer: CodeMirrorCodeCellWidgetRenderer.defaultRenderer
         });
         expect(widget.editor).to.be.a(CodeMirrorCellEditorWidget);
-      });
-
-      it('should be read-only', () => {
-        let widget = new BaseCellWidget({
-          renderer: CodeMirrorCodeCellWidgetRenderer.defaultRenderer
-        });
-        expect(() => { widget.editor = null; }).to.throwError();
       });
 
     });
