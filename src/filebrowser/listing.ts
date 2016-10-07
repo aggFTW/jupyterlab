@@ -2,7 +2,7 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IContents
+  Contents
 } from 'jupyter-js-services';
 
 import {
@@ -44,6 +44,10 @@ import {
 import {
   IWidgetOpener
 } from './browser';
+
+import {
+  renameFile
+} from './dialogs';
 
 import {
   FileBrowserModel
@@ -275,7 +279,7 @@ class DirListing extends Widget {
   /**
    * The the sorted content items.
    */
-  get sortedItems(): IContents.IModel[] {
+  get sortedItems(): Contents.IModel[] {
     return this._sortedModels;
   }
 
@@ -327,7 +331,7 @@ class DirListing extends Widget {
     if (!this._clipboard.length) {
       return;
     }
-    let promises: Promise<IContents.IModel>[] = [];
+    let promises: Promise<Contents.IModel>[] = [];
     for (let path of this._clipboard) {
       if (this._isCut) {
         let parts = path.split('/');
@@ -384,7 +388,7 @@ class DirListing extends Widget {
    * Duplicate the currently selected item(s).
    */
   duplicate(): Promise<void> {
-    let promises: Promise<IContents.IModel>[] = [];
+    let promises: Promise<Contents.IModel>[] = [];
     for (let item of this._getSelectedItems()) {
       if (item.type !== 'directory') {
         promises.push(this._model.copy(item.path, this._model.path));
@@ -939,29 +943,11 @@ class DirListing extends Widget {
     let path = items[index].name + '/';
 
     // Move all of the items.
-    let promises: Promise<IContents.IModel>[] = [];
+    let promises: Promise<Contents.IModel>[] = [];
     let names = event.mimeData.getData(utils.CONTENTS_MIME) as string[];
     for (let name of names) {
       let newPath = path + name;
-      promises.push(this._model.rename(name, newPath).catch(error => {
-        if (error.xhr) {
-          error.message = `${error.xhr.statusText} ${error.xhr.status}`;
-        }
-        if (error.message.indexOf('409') !== -1) {
-          let options = {
-            title: 'Overwrite file?',
-            body: `"${newPath}" already exists, overwrite?`,
-            okText: 'OVERWRITE'
-          };
-          return showDialog(options).then(button => {
-            if (button.text === 'OVERWRITE') {
-              return this._model.deleteFile(newPath).then(() => {
-                return this._model.rename(name, newPath);
-              });
-            }
-          });
-        }
-      }));
+      promises.push(renameFile(this._model, name, newPath));
     }
     Promise.all(promises).then(
       () => this._model.refresh(),
@@ -977,7 +963,7 @@ class DirListing extends Widget {
     let source = this._items[index];
     let model = this._model;
     let items = this.sortedItems;
-    let item: IContents.IModel = null;
+    let item: Contents.IModel = null;
 
     // If the source node is not selected, use just that node.
     if (!source.classList.contains(SELECTED_CLASS)) {
@@ -1118,7 +1104,7 @@ class DirListing extends Widget {
   /**
    * Get the currently selected items.
    */
-  private _getSelectedItems(): IContents.IModel[] {
+  private _getSelectedItems(): Contents.IModel[] {
     let items = this.sortedItems;
     return items.filter(item => this._selection[item.name]);
   }
@@ -1168,28 +1154,7 @@ class DirListing extends Widget {
       if (newName === original) {
         return;
       }
-      return this._model.rename(original, newName).catch(error => {
-        if (error.xhr) {
-          error.message = `${error.xhr.status}: error.statusText`;
-        }
-        if (error.message.indexOf('409') !== -1 ||
-            error.message.indexOf('already exists') !== -1) {
-          let options = {
-            title: 'Overwrite file?',
-            body: `"${newName}" already exists, overwrite?`,
-            okText: 'OVERWRITE'
-          };
-          return showDialog(options).then(button => {
-            if (button.text === 'OVERWRITE') {
-              return this._model.deleteFile(newName).then(() => {
-                return this._model.rename(original, newName).then(() => {
-                  this._model.refresh();
-                });
-              });
-            }
-          });
-        }
-      }).catch(error => {
+      return renameFile(this._model, original, newName).catch(error => {
         utils.showErrorMessage(this, 'Rename Error', error);
         return original;
       }).then(() => {
@@ -1244,7 +1209,7 @@ class DirListing extends Widget {
   private _model: FileBrowserModel = null;
   private _editNode: HTMLInputElement = null;
   private _items: HTMLElement[] = [];
-  private _sortedModels: IContents.IModel[] = null;
+  private _sortedModels: Contents.IModel[] = null;
   private _sortState: DirListing.ISortState = { direction: 'ascending', key: 'name' };
   private _drag: Drag = null;
   private _dragData: { pressX: number, pressY: number, index: number } = null;
@@ -1353,7 +1318,7 @@ namespace DirListing {
      *
      * @param model - The model object to use for the item state.
      */
-    updateItemNode(node: HTMLElement, model: IContents.IModel): void;
+    updateItemNode(node: HTMLElement, model: Contents.IModel): void;
 
     /**
      * Get the node containing the file name.
@@ -1487,7 +1452,7 @@ namespace DirListing {
      *
      * @param model - The model object to use for the item state.
      */
-    updateItemNode(node: HTMLElement, model: IContents.IModel): void {
+    updateItemNode(node: HTMLElement, model: Contents.IModel): void {
       let icon = utils.findElement(node, ITEM_ICON_CLASS);
       let text = utils.findElement(node, ITEM_TEXT_CLASS);
       let modified = utils.findElement(node, ITEM_MODIFIED_CLASS);
@@ -1512,7 +1477,11 @@ namespace DirListing {
         modTitle = dateTime(model.last_modified);
       }
 
-      text.textContent = model.name;
+      // If an item is being edited currently, its text node is unavailable.
+      if (text) {
+        text.textContent = model.name;
+      }
+
       modified.textContent = modText;
       modified.title = modTitle;
     }
@@ -1615,6 +1584,8 @@ namespace Private {
           changed = false;
           edit.blur();
           break;
+        default:
+          break;
         }
       };
     });
@@ -1624,7 +1595,7 @@ namespace Private {
    * Sort a list of items by sort state as a new array.
    */
   export
-  function sort(items: IContents.IModel[], state: DirListing.ISortState) : IContents.IModel[] {
+  function sort(items: Contents.IModel[], state: DirListing.ISortState) : Contents.IModel[] {
     let output = items.slice();
     if (state.key === 'last_modified') {
       output.sort((a, b) => {

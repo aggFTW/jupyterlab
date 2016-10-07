@@ -4,8 +4,8 @@
 import expect = require('expect.js');
 
 import {
-  MockKernel
-} from 'jupyter-js-services/lib/mockkernel';
+  IKernel, Kernel
+} from 'jupyter-js-services';
 
 import {
   deepEqual
@@ -203,29 +203,93 @@ describe('notebook/output-area/model', () => {
 
     describe('#execute()', () => {
 
+      let kernel: IKernel;
+
+      beforeEach((done) => {
+        Kernel.startNew().then(k => {
+          kernel = k;
+          return kernel.kernelInfo();
+        }).then(() => {
+          done();
+        }).catch(done);
+      });
+
       it('should execute code on a kernel and send outputs to the model', (done) => {
-        let kernel = new MockKernel();
         let model = new OutputAreaModel();
         expect(model.length).to.be(0);
-        model.execute('foo', kernel).then(reply => {
+        model.execute('print("hello")', kernel).then(reply => {
           expect(reply.content.execution_count).to.be(1);
           expect(reply.content.status).to.be('ok');
           expect(model.length).to.be(1);
+          kernel.shutdown();
           done();
-        });
+        }).catch(done);
       });
 
       it('should clear existing outputs', (done) => {
-        let kernel = new MockKernel();
         let model = new OutputAreaModel();
         for (let output of DEFAULT_OUTPUTS) {
           model.add(output);
         }
-        model.execute('foo', kernel).then(reply => {
+        return model.execute('print("hello")', kernel).then(reply => {
           expect(reply.content.execution_count).to.be(1);
           expect(model.length).to.be(1);
+          kernel.shutdown();
           done();
+        }).catch(done);
+      });
+
+    });
+
+    describe('#addMimeData', () => {
+
+      it('should add a mime type to an output data bundle', () => {
+        let model = new OutputAreaModel();
+        model.add({
+         output_type: 'display_data',
+         data: { 'text/plain': 'hello, world' },
+         metadata: {}
         });
+        let output = model.get(0) as nbformat.IDisplayData;
+        model.addMimeData(output, 'application/json', { 'foo': 1 });
+        output = model.get(0) as nbformat.IDisplayData;
+        expect((output.data['application/json'] as any)['foo']).to.be(1);
+      });
+
+      it('should refuse to add to an output not contained in the model', () => {
+        let model = new OutputAreaModel();
+        let output: nbformat.IDisplayData = {
+         output_type: 'display_data',
+         data: { },
+         metadata: {}
+        };
+        expect(() => { model.addMimeData(output, 'text/plain', 'foo'); }).to.throwError();
+      });
+
+      it('should refuse to add an existing mime type', () => {
+        let model = new OutputAreaModel();
+        model.add({
+         output_type: 'display_data',
+         data: { 'text/plain': 'hello, world' },
+         metadata: {}
+        });
+        let output = model.get(0) as nbformat.IDisplayData;
+        model.addMimeData(output, 'text/plain', 'foo');
+        output = model.get(0) as nbformat.IDisplayData;
+        expect(output.data['text/plain']).to.be('hello, world');
+      });
+
+      it('should refuse to add an invalid mime type/value pair', () => {
+        let model = new OutputAreaModel();
+        model.add({
+         output_type: 'display_data',
+         data: { 'text/plain': 'hello, world' },
+         metadata: {}
+        });
+        let output = model.get(0) as nbformat.IDisplayData;
+        model.addMimeData(output, 'application/json', 'foo');
+        output = model.get(0) as nbformat.IDisplayData;
+        expect(output.data['application/json']).to.be(void 0);
       });
 
     });

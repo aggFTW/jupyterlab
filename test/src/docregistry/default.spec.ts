@@ -4,7 +4,7 @@
 import expect = require('expect.js');
 
 import {
-  IKernel
+  Kernel
 } from 'jupyter-js-services';
 
 import {
@@ -17,19 +17,36 @@ import {
 } from '../../../lib/docregistry';
 
 import {
-  MockContext
-} from '../docmanager/mockcontext';
+  Context
+} from '../../../lib/docmanager/context';
+
+import {
+  createFileContext
+} from '../utils';
 
 
 class WidgetFactory extends ABCWidgetFactory<Widget, IDocumentModel> {
 
-  createNew(context: IDocumentContext<IDocumentModel>, kernel?: IKernel.IModel): Widget {
+  createNew(context: IDocumentContext<IDocumentModel>, kernel?: Kernel.IModel): Widget {
     return new Widget();
   }
 }
 
 
 describe('docmanager/default', () => {
+
+  let context: Context<IDocumentModel>;
+
+  beforeEach((done) => {
+    createFileContext().then(c => {
+      context = c;
+      done();
+    });
+  });
+
+  afterEach(() => {
+    context.dispose();
+  });
 
   describe('ABCWidgetFactory', () => {
 
@@ -65,8 +82,6 @@ describe('docmanager/default', () => {
 
       it('should create a new widget given a document model and a context', () => {
         let factory = new WidgetFactory();
-        let model = new DocumentModel();
-        let context = new MockContext(model);
         let widget = factory.createNew(context);
         expect(widget).to.be.a(Widget);
       });

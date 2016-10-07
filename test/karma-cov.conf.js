@@ -2,20 +2,30 @@ var path = require('path');
 
 module.exports = function (config) {
   config.set({
-    basePath: '..',
+    basePath: '.',
     browsers: ['Firefox'],
     frameworks: ['mocha'],
-    reporters: ['mocha', 'coverage'],
+    client: {
+      mocha: {
+        timeout : 10000 // 10 seconds - upped from 2 seconds
+      }
+    },
+    reporters: ['mocha', 'coverage', 'remap-coverage'],
     files: [
       'node_modules/es6-promise/dist/es6-promise.js',
-      'test/build/coverage.js'
+      'build/injector.js',
+      'build/coverage.js'
     ],
+    preprocessors: {
+      'build/coverage.js': ['sourcemap']
+    },
     coverageReporter: {
-      reporters : [
-        { 'type': 'text' },
-        { 'type': 'lcov', dir: 'test/coverage' },
-        { 'type': 'html', dir: 'test/coverage' }
-      ]
+      type: 'in-memory'
+    },
+    remapCoverageReporter: {
+      'text-summary': null, // to show summary in console
+      json: 'coverage/remapped.json',
+      html: 'coverage/html'
     },
     port: 9876,
     colors: true,

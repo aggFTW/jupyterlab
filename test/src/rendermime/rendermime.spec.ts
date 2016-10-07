@@ -4,12 +4,15 @@
 import expect = require('expect.js');
 
 import {
+  JSONObject
+} from 'phosphor/lib/algorithm/json';
+
+import {
   Widget
 } from 'phosphor/lib/ui/widget';
 
 import {
-  LatexRenderer, PDFRenderer, JavascriptRenderer,
-  SVGRenderer, MarkdownRenderer, TextRenderer, HTMLRenderer, ImageRenderer
+   TextRenderer
 } from '../../../lib/renderers';
 
 import {
@@ -17,35 +20,8 @@ import {
 } from '../../../lib/rendermime';
 
 import {
-  defaultSanitizer
-} from '../../../lib/sanitizer';
-
-
-const TRANSFORMERS = [
-  new JavascriptRenderer(),
-  new MarkdownRenderer(),
-  new HTMLRenderer(),
-  new PDFRenderer(),
-  new ImageRenderer(),
-  new SVGRenderer(),
-  new LatexRenderer(),
-  new TextRenderer()
-];
-
-
-export
-function defaultRenderMime(): RenderMime {
-  let renderers: RenderMime.MimeMap<RenderMime.IRenderer> = {};
-  let order: string[] = [];
-  for (let t of TRANSFORMERS) {
-    for (let m of t.mimetypes) {
-      renderers[m] = t;
-      order.push(m);
-    }
-  }
-  let sanitizer = defaultSanitizer;
-  return new RenderMime({ renderers, order, sanitizer });
-}
+  defaultRenderMime
+} from '../utils';
 
 
 describe('rendermime/index', () => {
@@ -126,6 +102,34 @@ describe('rendermime/index', () => {
         let widget = r.render({ bundle });
         expect(widget.node.innerHTML.indexOf('svg')).to.not.be(-1);
         expect(widget.node.innerHTML.indexOf('script')).to.be(-1);
+      });
+
+      it('should render json data', () => {
+        let bundle: RenderMime.MimeMap<JSONObject> = {
+          'application/json': { 'foo': 1 }
+        };
+        let r = defaultRenderMime();
+        let widget = r.render({ bundle });
+        expect(widget.node.textContent).to.be('{\n  "foo": 1\n}');
+      });
+
+      it('should accept an injector', () => {
+        let called = 0;
+        let injector = (mimetype: string, value: string | JSONObject) => {
+          if (mimetype === 'text/plain') {
+            expect(value as string).to.be('foo');
+            called++;
+          } else if (mimetype === 'application/json') {
+            expect((value as JSONObject)['foo']).to.be(1);
+            called++;
+          }
+        };
+        let bundle: RenderMime.MimeMap<string> = {
+          'foo/bar': '1'
+        };
+        let r = defaultRenderMime();
+        r.render({ bundle, injector });
+        expect(called).to.be(2);
       });
 
     });

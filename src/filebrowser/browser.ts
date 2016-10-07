@@ -2,7 +2,7 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IContents
+  Contents
 } from 'jupyter-js-services';
 
 import {
@@ -113,9 +113,9 @@ class FileBrowserWidget extends Widget {
 
     model.fileChanged.connect((fbModel, args) => {
       if (args.newValue) {
-        manager.handleRename(args.oldValue, args.newValue);
+        manager.handleRename(args.oldValue.path, args.newValue.path);
       } else {
-        manager.handleDelete(args.oldValue);
+        manager.handleDelete(args.oldValue.path);
       }
     });
 
@@ -211,30 +211,23 @@ class FileBrowserWidget extends Widget {
    * Open a file by path.
    */
   openPath(path: string, widgetName='default'): Widget {
-    let model = this.model;
-    let widget = this._manager.findWidget(path, widgetName);
-    if (!widget) {
-      widget = this._manager.open(path, widgetName);
-      let context = this._manager.contextForWidget(widget);
-      context.populated.connect(() => model.refresh() );
-      context.kernelChanged.connect(() => model.refresh() );
-    }
-    this._opener.open(widget);
-    return widget;
+    return this._buttons.open(path, widgetName);
+  }
+
+  /**
+   * Create a file from a creator.
+   */
+  createFrom(creatorName: string): Promise<Widget> {
+    return this._buttons.createFrom(creatorName);
   }
 
   /**
    * Create a new untitled file in the current directory.
    */
-  createNew(options: IContents.ICreateOptions): Promise<Widget> {
+  createNew(options: Contents.ICreateOptions): Promise<Widget> {
     let model = this.model;
     return model.newUntitled(options).then(contents => {
-      let widget = this._manager.createNew(contents.path);
-      let context = this._manager.contextForWidget(widget);
-      context.populated.connect(() => model.refresh() );
-      context.kernelChanged.connect(() => model.refresh() );
-      this._opener.open(widget);
-      return widget;
+      return this._buttons.createNew(contents.path);
     });
   }
 

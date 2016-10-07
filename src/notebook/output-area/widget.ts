@@ -343,13 +343,15 @@ class OutputAreaWidget extends Widget {
     let layout = this.layout as PanelLayout;
     let widget = layout.widgets.at(index) as OutputWidget;
     let output = this._model.get(index);
-    let injector: (mimetype: string, value: string) => void;
+    let injector: (mimetype: string, value: string | JSONObject) => void;
     if (output.output_type === 'display_data' ||
         output.output_type === 'execute_result') {
-      injector = (mimetype: string, value: string) => {
+      injector = (mimetype: string, value: string | JSONObject) => {
+        this._injecting = true;
         this._model.addMimeData(
           output as nbformat.IDisplayData, mimetype, value
         );
+        this._injecting = false;
       };
     }
     let trusted = this._trusted;
@@ -390,7 +392,9 @@ class OutputAreaWidget extends Widget {
       }
       break;
     case 'set':
-      this.updateChild(args.newIndex);
+      if (!this._injecting) {
+        this.updateChild(args.newIndex);
+      }
       break;
     default:
       break;
@@ -461,6 +465,7 @@ class OutputAreaWidget extends Widget {
   private _model: OutputAreaModel = null;
   private _rendermime: RenderMime = null;
   private _renderer: OutputAreaWidget.IRenderer = null;
+  private _injecting = false;
 }
 
 
@@ -737,27 +742,22 @@ class OutputWidget extends Widget {
       this.setOutput(child);
       return;
     }
-
     // Extract the data from the output and sanitize if necessary.
     let rendermime = this._rendermime;
     let bundle = this.getBundle(output as nbformat.IOutput);
     let data = this.convertBundle(bundle);
-
     // Clear the content.
     this.clear();
 
     // Bail if no data to display.
-    let msg = 'Did not find renderer for output mimebundle.';
     if (!data) {
-      console.log(msg);
+      console.warn('Did not find renderer for output mimebundle.');
       return;
     }
 
     // Create the output result area.
     let child = rendermime.render({ bundle: data, trusted, injector });
     if (!child) {
-      console.log(msg);
-      console.log(data);
       return;
     }
     this.setOutput(child);
@@ -781,6 +781,8 @@ class OutputWidget extends Widget {
       break;
     case 'error':
       child.addClass(ERROR_CLASS);
+      break;
+    default:
       break;
     }
   }
@@ -827,8 +829,9 @@ class OutputWidget extends Widget {
       bundle = (output as nbformat.IDisplayData).data;
       break;
     case 'stream':
+      let text = (output as nbformat.IStream).text;
       bundle = {
-        'application/vnd.jupyter.console-text': (output as nbformat.IStream).text
+        'application/vnd.jupyter.console-text': text
       };
       break;
     case 'error':
@@ -838,6 +841,8 @@ class OutputWidget extends Widget {
         'application/vnd.jupyter.console-text': traceback ||
           `${out.ename}: ${out.evalue}`
       };
+      break;
+    default:
       break;
     }
     return bundle || {};
