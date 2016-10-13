@@ -93,7 +93,7 @@
 .jp-RunningSessions-item {
   display: flex;
   flex-direction: row;
-  padding: 3px 12px;
+  padding: 2px;
   font-size: 13px;
   font-weight: 500;
   color: var(--jp-ui-font-color1);
@@ -130,10 +130,16 @@
   content: '\f120';
 }
 
+
 .jp-RunningSessions-itemLabel {
   flex: 1 1 auto;
   padding: 1px;
+  margin-right: 4px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  direction: rtl;
 }
+
 
 .jp-RunningSessions-itemKernelName {
   flex: 0 0 auto;
@@ -145,8 +151,9 @@
 .jp-RunningSessions-itemShutdown {
   flex: 0 0 auto;
   padding: 1px 4px;
+  margin-right: 8px;
   color: var(--jp-inverse-ui-font-color0);
-  background: var(--jp-warn-color);
+  background: var(--jp-warn-color1);
   border-radius: 1px;
   cursor: pointer;
 }

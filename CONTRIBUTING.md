@@ -16,7 +16,7 @@ questions about these issues.
 ## General Guidelines
 
 For general documentation about contributing to Jupyter projects, see the
-[Project Jupyter Contributor Documentation](http://jupyter.readthedocs.io/en/latest/contributor/content-contributor.html).
+[Project Jupyter Contributor Documentation](https://jupyter.readthedocs.io/en/latest/contributor/content-contributor.html).
 
 All source code is written in [TypeScript](http://www.typescriptlang.org/Handbook). See the [Style Guide](https://github.com/jupyter/jupyterlab/wiki/TypeScript-Style-Guide).
 
@@ -136,7 +136,7 @@ The JupyterLab application is made up of two major parts:
 - an npm package
 - a Jupyter server extension (Python package)
 
-Each part is named `jupyterlab`. The [developer tutorial documentation](http://jupyterlab-tutorial.readthedocs.io/en/latest/index.html)
+Each part is named `jupyterlab`. The [developer tutorial documentation](https://jupyterlab-tutorial.readthedocs.io/en/latest/index.html)
 provides additional architecture information.
 
 ## The NPM Package
@@ -186,7 +186,7 @@ to build the changes and then refresh your browser to see the changes.
 To have the system build after each source file change, run:
 
 ```bash
-npm run watch:serverextension
+npm run watch
 ```
 
 and refresh the browser.

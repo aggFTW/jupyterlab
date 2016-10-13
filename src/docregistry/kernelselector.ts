@@ -2,7 +2,7 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IKernel, ISession
+  Kernel, Session
 } from 'jupyter-js-services';
 
 import {
@@ -27,12 +27,12 @@ interface IKernelSelection {
   /**
    * The kernel spec information.
    */
-  specs: IKernel.ISpecModels;
+  specs: Kernel.ISpecModels;
 
   /**
    * The current running sessions.
    */
-  sessions: ISession.IModel[];
+  sessions: Session.IModel[];
 
   /**
    * The desired kernel language.
@@ -42,7 +42,7 @@ interface IKernelSelection {
   /**
    * The optional existing kernel id.
    */
-  kernel?: IKernel.IModel;
+  kernel?: Kernel.IModel;
 
   /**
    * The host node for the dialog.
@@ -52,12 +52,38 @@ interface IKernelSelection {
 
 
 /**
+ * An interface for populating a kernel selector.
+ */
+export
+interface IPopulateOptions {
+   /**
+    * The Kernel specs.
+    */
+  specs: Kernel.ISpecModels;
+
+  /**
+   * The current running sessions.
+   */
+  sessions: Session.IModel[];
+
+  /**
+   * The preferred kernel name.
+   */
+  preferredKernel?: string;
+
+  /**
+   * The preferred kernel language.
+   */
+  preferredLanguage?: string;
+}
+
+
+/**
  * Bring up a dialog to select a kernel.
  */
 export
-function selectKernel(options: IKernelSelection): Promise<IKernel.IModel> {
-  let specs = options.specs;
-  let kernel = options.kernel;
+function selectKernel(options: IKernelSelection): Promise<Kernel.IModel> {
+  let { specs, kernel, sessions, preferredLanguage } = options;
 
   // Create the dialog body.
   let body = document.createElement('div');
@@ -74,8 +100,7 @@ function selectKernel(options: IKernelSelection): Promise<IKernel.IModel> {
   body.appendChild(selector);
 
   // Get the current sessions, populate the kernels, and show the dialog.
-  let lang = options.preferredLanguage;
-  populateKernels(selector, specs, options.sessions, lang);
+  populateKernels(selector, { specs, sessions, preferredLanguage });
   return showDialog({
     title: 'Select Kernel',
     body,
@@ -83,7 +108,7 @@ function selectKernel(options: IKernelSelection): Promise<IKernel.IModel> {
   }).then(result => {
     // Change the kernel if a kernel was selected.
     if (result.text === 'SELECT') {
-      return JSON.parse(selector.value) as IKernel.IModel;
+      return JSON.parse(selector.value) as Kernel.IModel;
     }
     return void 0;
   });
@@ -117,7 +142,7 @@ function selectKernelForContext(context: IDocumentContext<IDocumentModel>, host?
  * Get the appropriate kernel name.
  */
 export
-function findKernel(kernelName: string, language: string, specs: IKernel.ISpecModels): string {
+function findKernel(kernelName: string, language: string, specs: Kernel.ISpecModels): string {
   if (kernelName === 'unknown') {
     return specs.default;
   }
@@ -152,13 +177,9 @@ function findKernel(kernelName: string, language: string, specs: IKernel.ISpecMo
 /**
  * Populate a kernel dropdown list.
  *
- * @param node - The host html element.
+ * @param node - The host node.
  *
- * @param specs - The available kernel spec information.
- *
- * @param running - The list of running session ids.
- *
- * @param preferredLanguage - The preferred language for the kernel.
+ * @param options - The options used to populate the kernels.
  *
  * #### Notes
  * Populates the list with separated sections:
@@ -174,12 +195,15 @@ function findKernel(kernelName: string, language: string, specs: IKernel.ISpecMo
  * the explicit session information.
  */
 export
-function populateKernels(node: HTMLSelectElement, specs: IKernel.ISpecModels, running: ISession.IModel[], preferredLanguage?: string): void {
+function populateKernels(node: HTMLSelectElement, options: IPopulateOptions): void {
   // Clear any existing options.
   while (node.firstChild) {
     node.removeChild(node.firstChild);
   }
   let maxLength = 10;
+
+  let { preferredKernel, preferredLanguage, sessions, specs } = options;
+
   // Create mappings of display names and languages for kernel name.
   let displayNames: { [key: string]: string } = Object.create(null);
   let languages: { [key: string]: string } = Object.create(null);
@@ -191,11 +215,18 @@ function populateKernels(node: HTMLSelectElement, specs: IKernel.ISpecModels, ru
     languages[name] = spec.language;
     modes[name] = spec.codemirror_mode;
   }
-  // Handle a preferred kernel language in order of display name.
+
+  // Handle a kernel by name.
   let names: string[] = [];
+  if (preferredKernel && preferredKernel in specs.kernelspecs) {
+    names.push(name);
+  }
+
+  // Handle a preferred kernel language in order of display name.
   if (preferredLanguage) {
     for (let name in specs.kernelspecs) {
-      if (languages[name] === preferredLanguage || modes[name] === preferredLanguage) {
+      if (languages[name] === preferredLanguage ||
+          modes[name] === preferredLanguage) {
         names.push(name);
       }
     }
@@ -234,9 +265,9 @@ function populateKernels(node: HTMLSelectElement, specs: IKernel.ISpecModels, ru
     node.appendChild(createSeparatorOption(maxLength));
   }
   // Add the sessions using the preferred language first.
-  let matchingSessions: ISession.IModel[] = [];
+  let matchingSessions: Session.IModel[] = [];
   if (preferredLanguage) {
-    for (let session of running) {
+    for (let session of sessions) {
       if (languages[session.kernel.name] === preferredLanguage) {
         matchingSessions.push(session);
       }
@@ -253,8 +284,8 @@ function populateKernels(node: HTMLSelectElement, specs: IKernel.ISpecModels, ru
     }
   }
   // Add the other remaining sessions.
-  let otherSessions: ISession.IModel[] = [];
-  for (let session of running) {
+  let otherSessions: Session.IModel[] = [];
+  for (let session of sessions) {
     if (matchingSessions.indexOf(session) === -1) {
       otherSessions.push(session);
     }
@@ -296,7 +327,7 @@ function optionForName(name: string, displayName: string): HTMLOptionElement {
 /**
  * Create an option element for a session.
  */
-function optionForSession(session: ISession.IModel, displayName: string, maxLength: number): HTMLOptionElement {
+function optionForSession(session: Session.IModel, displayName: string, maxLength: number): HTMLOptionElement {
   let option = document.createElement('option');
   let sessionName = session.notebook.path.split('/').pop();
   if (sessionName.length > maxLength) {

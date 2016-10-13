@@ -2,7 +2,7 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IServiceManager, ISession, ITerminalSession
+  IServiceManager, Session, TerminalSession
 } from 'jupyter-js-services';
 
 import {
@@ -87,11 +87,6 @@ const ITEM_ICON_CLASS = 'jp-RunningSessions-itemIcon';
 const ITEM_LABEL_CLASS = 'jp-RunningSessions-itemLabel';
 
 /**
- * The class name added to a running session item kernel name.
- */
-const KERNEL_NAME_CLASS = 'jp-RunningSessions-itemKernelName';
-
-/**
  * The class name added to a running session item shutdown button.
  */
 const SHUTDOWN_BUTTON_CLASS = 'jp-RunningSessions-itemShutdown';
@@ -164,12 +159,12 @@ class RunningSessions extends Widget {
   /**
    * A signal emitted when a kernel session open is requested.
    */
-  sessionOpenRequested: ISignal<RunningSessions, ISession.IModel>;
+  sessionOpenRequested: ISignal<RunningSessions, Session.IModel>;
 
   /**
    * A signal emitted when a terminal session open is requested.
    */
-  terminalOpenRequested: ISignal<RunningSessions, ITerminalSession.IModel>;
+  terminalOpenRequested: ISignal<RunningSessions, TerminalSession.IModel>;
 
   /**
    * The renderer used by the running sessions widget.
@@ -355,7 +350,7 @@ class RunningSessions extends Widget {
   /**
    * Handle a change to the running sessions.
    */
-  private _onSessionsChanged(sender: ISession.IManager, models: ISession.IModel[]): void {
+  private _onSessionsChanged(sender: Session.IManager, models: Session.IModel[]): void {
     // Strip out non-file backed sessions.
     this._runningSessions = [];
     for (let session of models) {
@@ -370,15 +365,15 @@ class RunningSessions extends Widget {
   /**
    * Handle a change to the running terminals.
    */
-  private _onTerminalsChanged(sender: ITerminalSession.IManager, models: ITerminalSession.IModel[]): void {
+  private _onTerminalsChanged(sender: TerminalSession.IManager, models: TerminalSession.IModel[]): void {
     this._runningTerminals = models;
     this.update();
   }
 
   private _manager: IServiceManager = null;
   private _renderer: RunningSessions.IRenderer = null;
-  private _runningSessions: ISession.IModel[] = [];
-  private _runningTerminals: ITerminalSession.IModel[] = [];
+  private _runningSessions: Session.IModel[] = [];
+  private _runningTerminals: TerminalSession.IModel[] = [];
   private _refreshId = -1;
 }
 
@@ -496,7 +491,7 @@ namespace RunningSessions {
      * This method should completely reset the state of the node to
      * reflect the data for the session models.
      */
-    updateTerminalNode(node: HTMLLIElement, model: ITerminalSession.IModel): void;
+    updateTerminalNode(node: HTMLLIElement, model: TerminalSession.IModel): void;
 
     /**
      * Populate a node with running kernel session data.
@@ -511,7 +506,7 @@ namespace RunningSessions {
      * This method should completely reset the state of the node to
      * reflect the data for the session models.
      */
-    updateSessionNode(node: HTMLLIElement, model: ISession.IModel, kernelName: string): void;
+    updateSessionNode(node: HTMLLIElement, model: Session.IModel, kernelName: string): void;
   }
 
 
@@ -606,15 +601,12 @@ namespace RunningSessions {
       icon.className = ITEM_ICON_CLASS;
       let label = document.createElement('span');
       label.className = ITEM_LABEL_CLASS;
-      let kernel = document.createElement('span');
-      kernel.className = KERNEL_NAME_CLASS;
       let shutdown = document.createElement('span');
       shutdown.className = SHUTDOWN_BUTTON_CLASS;
       shutdown.textContent = 'SHUTDOWN';
 
       node.appendChild(icon);
       node.appendChild(label);
-      node.appendChild(kernel);
       node.appendChild(shutdown);
       return node;
     }
@@ -660,7 +652,7 @@ namespace RunningSessions {
      * This method should completely reset the state of the node to
      * reflect the data for the session models.
      */
-    updateTerminalNode(node: HTMLLIElement, model: ITerminalSession.IModel): void {
+    updateTerminalNode(node: HTMLLIElement, model: TerminalSession.IModel): void {
       let label = findElement(node, ITEM_LABEL_CLASS);
       label.textContent = `terminals/${model.name}`;
     }
@@ -678,7 +670,7 @@ namespace RunningSessions {
      * This method should completely reset the state of the node to
      * reflect the data for the session models.
      */
-    updateSessionNode(node: HTMLLIElement, model: ISession.IModel, kernelName: string): void {
+    updateSessionNode(node: HTMLLIElement, model: Session.IModel, kernelName: string): void {
       let icon = findElement(node, ITEM_ICON_CLASS);
       if (model.notebook.path.indexOf('.ipynb') !== -1) {
         icon.className = `${ITEM_ICON_CLASS} ${NOTEBOOK_ICON_CLASS}`;
@@ -686,9 +678,12 @@ namespace RunningSessions {
         icon.className = `${ITEM_ICON_CLASS} ${FILE_ICON_CLASS}`;
       }
       let label = findElement(node, ITEM_LABEL_CLASS);
-      label.textContent = model.notebook.path.split('/').pop();
-      let kernel = findElement(node, KERNEL_NAME_CLASS);
-      kernel.textContent = kernelName;
+      label.textContent = model.notebook.path;
+      let title = (
+        `Path: ${model.notebook.path}\n` +
+        `Kernel: ${kernelName}`
+      );
+      label.title = title;
     }
   }
 

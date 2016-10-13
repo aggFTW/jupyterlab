@@ -2,8 +2,12 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IContents
+  Contents
 } from 'jupyter-js-services';
+
+import {
+  each
+} from 'phosphor/lib/algorithm/iteration';
 
 import {
   Message
@@ -112,10 +116,11 @@ class FileBrowserWidget extends Widget {
     this._listing = new DirListing({ manager, model, opener, renderer });
 
     model.fileChanged.connect((fbModel, args) => {
+      let oldPath = args.oldValue && args.oldValue.path || null;
       if (args.newValue) {
-        manager.handleRename(args.oldValue, args.newValue);
+        manager.handleRename(oldPath, args.newValue.path);
       } else {
-        manager.handleDelete(args.oldValue);
+        manager.handleDelete(oldPath);
       }
     });
 
@@ -189,10 +194,9 @@ class FileBrowserWidget extends Widget {
    */
   open(): void {
     let foundDir = false;
-    let items = this._model.items;
-    for (let item of items) {
+    each(this._model.items, item => {
       if (!this._listing.isSelected(item.name)) {
-        continue;
+        return;
       }
       if (item.type === 'directory') {
         if (!foundDir) {
@@ -204,37 +208,30 @@ class FileBrowserWidget extends Widget {
       } else {
         this.openPath(item.path);
       }
-    }
+    });
   }
 
   /**
    * Open a file by path.
    */
   openPath(path: string, widgetName='default'): Widget {
-    let model = this.model;
-    let widget = this._manager.findWidget(path, widgetName);
-    if (!widget) {
-      widget = this._manager.open(path, widgetName);
-      let context = this._manager.contextForWidget(widget);
-      context.populated.connect(() => model.refresh() );
-      context.kernelChanged.connect(() => model.refresh() );
-    }
-    this._opener.open(widget);
-    return widget;
+    return this._buttons.open(path, widgetName);
+  }
+
+  /**
+   * Create a file from a creator.
+   */
+  createFrom(creatorName: string): Promise<Widget> {
+    return this._buttons.createFrom(creatorName);
   }
 
   /**
    * Create a new untitled file in the current directory.
    */
-  createNew(options: IContents.ICreateOptions): Promise<Widget> {
+  createNew(options: Contents.ICreateOptions): Promise<Widget> {
     let model = this.model;
     return model.newUntitled(options).then(contents => {
-      let widget = this._manager.createNew(contents.path);
-      let context = this._manager.contextForWidget(widget);
-      context.populated.connect(() => model.refresh() );
-      context.kernelChanged.connect(() => model.refresh() );
-      this._opener.open(widget);
-      return widget;
+      return this._buttons.createNew(contents.path);
     });
   }
 

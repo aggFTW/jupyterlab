@@ -6,6 +6,10 @@ import {
 } from 'jupyter-js-services';
 
 import {
+  JSONObject
+} from 'phosphor/lib/algorithm/json';
+
+import {
   IDisposable
 } from 'phosphor/lib/core/disposable';
 
@@ -98,7 +102,6 @@ class OutputAreaModel implements IDisposable {
       this.clear();
       this.clearNext = false;
     }
-
     if (output.output_type === 'input_request') {
       this.list.add(output);
     }
@@ -161,18 +164,26 @@ class OutputAreaModel implements IDisposable {
    * @param mimetype - The mimetype to add.
    *
    * @param value - The value to add.
+   *
+   * #### Notes
+   * The output must be contained in the model, or an error will be thrown.
+   * Only non-existent types can be added.
+   * Types are validated before being added.
    */
-  addMimeData(output: nbformat.IDisplayData | nbformat.IExecuteResult, mimetype: string, value: string): void {
+  addMimeData(output: nbformat.IDisplayData | nbformat.IExecuteResult, mimetype: string, value: string | JSONObject): void {
     let index = this.list.indexOf(output);
     if (index === -1) {
       throw new Error(`Cannot add data to non-tracked bundle`);
     }
-    if (mimetype in output) {
+    if (mimetype in output.data) {
       console.warn(`Cannot add existing key '${mimetype}' to bundle`);
       return;
     }
-    output.data[mimetype] = value;
-    this.list.set(index, output);
+    if (nbformat.validateMimeValue(mimetype, value)) {
+      output.data[mimetype] = value;
+    } else {
+      console.warn(`Refusing to add invalid mime value of type ${mimetype} to output`);
+    }
   }
 
   /**
@@ -209,6 +220,25 @@ class OutputAreaModel implements IDisposable {
       // Handle the execute reply.
       future.onReply = (msg: KernelMessage.IExecuteReplyMsg) => {
         resolve(msg);
+        // API responses that contain a pager are special cased and their type
+        // is overriden from 'execute_reply' to 'display_data' in order to
+        // render output.
+        let content = msg.content as KernelMessage.IExecuteOkReply;
+        let payload = content && content.payload;
+        if (!payload || !payload.length) {
+          return;
+        }
+        let pages = payload.filter(i => (i as any).source === 'page');
+        if (!pages.length) {
+          return;
+        }
+        let page = JSON.parse(JSON.stringify(pages[0]));
+        let model: nbformat.IOutput = {
+          output_type: 'display_data',
+          data: (page as any).data as nbformat.MimeBundle,
+          metadata: {}
+        };
+        this.add(model);
       };
       // Handle stdin.
       future.onStdin = (msg: KernelMessage.IStdinMessage) => {

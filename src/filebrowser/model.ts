@@ -2,12 +2,16 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IContents, IKernel, IServiceManager, ISession
+  Contents, ContentsManager, Kernel, IServiceManager, Session
 } from 'jupyter-js-services';
 
 import {
-  deepEqual
-} from 'phosphor/lib/algorithm/json';
+  ISequence
+} from 'phosphor/lib/algorithm/sequence';
+
+import {
+  Vector
+} from 'phosphor/lib/collections/vector';
 
 import {
   IDisposable
@@ -20,7 +24,6 @@ import {
 import {
   IChangedArgs
 } from '../common/interfaces';
-
 
 
 /**
@@ -37,7 +40,7 @@ class FileBrowserModel implements IDisposable {
    */
   constructor(options: FileBrowserModel.IOptions) {
     this._manager = options.manager;
-    this._model = { path: '', name: '/', type: 'directory', content: [] };
+    this._model = { path: '', name: '/', type: 'directory' };
     this.cd();
     this._manager.sessions.runningChanged.connect(this._onRunningChanged, this);
   }
@@ -55,54 +58,53 @@ class FileBrowserModel implements IDisposable {
   /**
    * Get the file path changed signal.
    */
-  fileChanged: ISignal<FileBrowserModel, IChangedArgs<string>>;
+  fileChanged: ISignal<FileBrowserModel, IChangedArgs<Contents.IModel>>;
 
   /**
    * Get the current path.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get path(): string {
-    return this._model.path;
+    return this._model ? this._model.path : '';
   }
 
   /**
    * Get a read-only list of the items in the current path.
    */
-  get items(): IContents.IModel[] {
-    return this._model.content ? this._model.content.slice() : [];
+  get items(): ISequence<Contents.IModel> {
+    return this._items;
   }
 
   /**
-   * Get whether the view model is disposed.
+   * Get whether the model is disposed.
    */
   get isDisposed(): boolean {
     return this._model === null;
   }
 
   /**
-   * Get the session models for active notebooks.
-   *
-   * #### Notes
-   * This is a read-only property.
+   * Get the session models for active notebooks in the current directory.
    */
-  get sessions(): ISession.IModel[] {
-    return this._sessions.slice();
+  get sessions(): ISequence<Session.IModel> {
+    return this._sessions;
   }
 
   /**
    * Get the kernel specs.
    */
-  get kernelspecs(): IKernel.ISpecModels {
+  get kernelspecs(): Kernel.ISpecModels {
     return this._manager.kernelspecs;
   }
 
   /**
-   * Dispose of the resources held by the view model.
+   * Dispose of the resources held by the model.
    */
   dispose(): void {
+    if (this.isDisposed) {
+      return;
+    }
     this._model = null;
+    this._sessions.clear();
+    this._items.clear();
     this._manager = null;
     clearSignalData(this);
   }
@@ -120,22 +122,27 @@ class FileBrowserModel implements IDisposable {
     }
     // Collapse requests to the same directory.
     if (newValue === this._pendingPath) {
-      return Promise.resolve(void 0);
+      return this._pending;
     }
     let oldValue = this.path;
-    let options: IContents.IFetchOptions = { content: true };
+    let options: Contents.IFetchOptions = { content: true };
     this._pendingPath = newValue;
     if (newValue === '.') {
       newValue = this.path;
     }
     if (oldValue !== newValue) {
-      this._sessions = [];
+      this._sessions.clear();
     }
-    this._pending = this._manager.contents.get(newValue, options).then(contents => {
-      this._model = contents;
-      return this._manager.sessions.listRunning();
+    let manager = this._manager;
+    this._pending = manager.contents.get(newValue, options).then(contents => {
+      this._handleContents(contents);
+      this._pendingPath = null;
+      return manager.sessions.listRunning();
     }).then(models => {
-      this._onRunningChanged(this._manager.sessions, models);
+      if (this.isDisposed) {
+        return;
+      }
+      this._onRunningChanged(manager.sessions, models);
       if (oldValue !== newValue) {
         this.pathChanged.emit({
           name: 'path',
@@ -144,7 +151,6 @@ class FileBrowserModel implements IDisposable {
         });
       }
       this.refreshed.emit(void 0);
-      this._pendingPath = null;
     });
     return this._pending;
   }
@@ -171,7 +177,7 @@ class FileBrowserModel implements IDisposable {
    *
    * @returns A promise which resolves to the contents of the file.
    */
-  copy(fromFile: string, toDir: string): Promise<IContents.IModel> {
+  copy(fromFile: string, toDir: string): Promise<Contents.IModel> {
     let normalizePath = Private.normalizePath;
     fromFile = normalizePath(this._model.path, fromFile);
     toDir = normalizePath(this._model.path, toDir);
@@ -179,7 +185,7 @@ class FileBrowserModel implements IDisposable {
       this.fileChanged.emit({
         name: 'file',
         oldValue: void 0,
-        newValue: contents.path
+        newValue: contents
       });
       return contents;
     });
@@ -198,7 +204,7 @@ class FileBrowserModel implements IDisposable {
     return this._manager.contents.delete(path).then(() => {
       this.fileChanged.emit({
         name: 'file',
-        oldValue: path,
+        oldValue: { path: path },
         newValue: void 0
       });
     });
@@ -227,16 +233,18 @@ class FileBrowserModel implements IDisposable {
    *
    * @returns A promise containing the new file contents model.
    */
-  newUntitled(options: IContents.ICreateOptions): Promise<IContents.IModel> {
+  newUntitled(options: Contents.ICreateOptions): Promise<Contents.IModel> {
     if (options.type === 'file') {
       options.ext = options.ext || '.txt';
     }
     options.path = options.path || this._model.path;
-    return this._manager.contents.newUntitled(options).then(contents => {
+
+    let promise = this._manager.contents.newUntitled(options);
+    return promise.then((contents: Contents.IModel) => {
       this.fileChanged.emit({
         name: 'file',
         oldValue: void 0,
-        newValue: contents.path
+        newValue: contents
       });
       return contents;
     });
@@ -251,16 +259,17 @@ class FileBrowserModel implements IDisposable {
    *
    * @returns A promise containing the new file contents model.
    */
-  rename(path: string, newPath: string): Promise<IContents.IModel> {
+  rename(path: string, newPath: string): Promise<Contents.IModel> {
     // Handle relative paths.
-    let normalizePath = Private.normalizePath;
-    path = normalizePath(this._model.path, path);
-    newPath = normalizePath(this._model.path, newPath);
-    return this._manager.contents.rename(path, newPath).then(contents => {
+    path = Private.normalizePath(this._model.path, path);
+    newPath = Private.normalizePath(this._model.path, newPath);
+
+    let promise = this._manager.contents.rename(path, newPath);
+    return promise.then((contents: Contents.IModel) => {
       this.fileChanged.emit({
         name: 'file',
-        oldValue: path,
-        newValue: newPath
+        oldValue: {type: contents.type , path: path},
+        newValue: contents
       });
       return contents;
     });
@@ -279,13 +288,13 @@ class FileBrowserModel implements IDisposable {
    * This will fail to upload files that are too big to be sent in one
    * request to the server.
    */
-  upload(file: File, overwrite?: boolean): Promise<IContents.IModel> {
+  upload(file: File, overwrite?: boolean): Promise<Contents.IModel> {
     // Skip large files with a warning.
     if (file.size > this._maxUploadSizeMb * 1024 * 1024) {
       let msg = `Cannot upload file (>${this._maxUploadSizeMb} MB) `;
       msg += `"${file.name}"`;
       console.warn(msg);
-      return Promise.reject<IContents.IModel>(new Error(msg));
+      return Promise.reject<Contents.IModel>(new Error(msg));
     }
 
     if (overwrite) {
@@ -295,7 +304,8 @@ class FileBrowserModel implements IDisposable {
     let path = this._model.path;
     path = path ? path + '/' + file.name : file.name;
     return this._manager.contents.get(path, {}).then(() => {
-      return Private.typedThrow<IContents.IModel>(`"${file.name}" already exists`);
+      let msg = `"${file.name}" already exists`;
+      throw new Error(msg);
     }, () => {
       return this._upload(file);
     });
@@ -311,14 +321,14 @@ class FileBrowserModel implements IDisposable {
   /**
    * Perform the actual upload.
    */
-  private _upload(file: File): Promise<IContents.IModel> {
+  private _upload(file: File): Promise<Contents.IModel> {
     // Gather the file model parameters.
     let path = this._model.path;
     path = path ? path + '/' + file.name : file.name;
     let name = file.name;
     let isNotebook = file.name.indexOf('.ipynb') !== -1;
-    let type: IContents.FileType = isNotebook ? 'notebook' : 'file';
-    let format: IContents.FileFormat = isNotebook ? 'json' : 'base64';
+    let type: Contents.ContentType = isNotebook ? 'notebook' : 'file';
+    let format: Contents.FileFormat = isNotebook ? 'json' : 'base64';
 
     // Get the file content.
     let reader = new FileReader();
@@ -328,19 +338,21 @@ class FileBrowserModel implements IDisposable {
       reader.readAsArrayBuffer(file);
     }
 
-    return new Promise<IContents.IModel>((resolve, reject) => {
+    return new Promise<Contents.IModel>((resolve, reject) => {
       reader.onload = (event: Event) => {
-        let model: IContents.IModel = {
+        let model: Contents.IModel = {
           type: type,
           format,
           name,
           content: Private.getContent(reader)
         };
-        this._manager.contents.save(path, model).then(contents => {
+
+        let promise = this._manager.contents.save(path, model);
+        promise.then((contents: Contents.IModel) => {
           this.fileChanged.emit({
             name: 'file',
             oldValue: void 0,
-            newValue: contents.path
+            newValue: contents
           });
           resolve(contents);
         });
@@ -354,24 +366,28 @@ class FileBrowserModel implements IDisposable {
   }
 
   /**
+   * Handle an updated contents model.
+   */
+  private _handleContents(contents: Contents.IModel): void {
+    // Update our internal data.
+    this._model = contents;
+    this._items.clear();
+    this._paths = contents.content.map((model: Contents.IModel) => {
+      return model.path;
+    });
+    this._items = new Vector<Contents.IModel>(contents.content);
+    this._model.content = null;
+  }
+
+  /**
    * Handle a change to the running sessions.
    */
-  private _onRunningChanged(sender: ISession.IManager, models: ISession.IModel[]): void {
-    if (deepEqual(models, this._sessions)) {
-      return;
-    }
-    this._sessions = [];
-    if (!models.length) {
-      this.refreshed.emit(void 0);
-      return;
-    }
-    let paths = this._model.content.map((contents: IContents.IModel) => {
-      return contents.path;
-    });
+  private _onRunningChanged(sender: Session.IManager, models: Session.IModel[]): void {
+    this._sessions.clear();
     for (let model of models) {
-      let index = paths.indexOf(model.notebook.path);
+      let index = this._paths.indexOf(model.notebook.path);
       if (index !== -1) {
-        this._sessions.push(model);
+        this._sessions.pushBack(model);
       }
     }
     this.refreshed.emit(void 0);
@@ -379,8 +395,10 @@ class FileBrowserModel implements IDisposable {
 
   private _maxUploadSizeMb = 15;
   private _manager: IServiceManager = null;
-  private _sessions: ISession.IModel[] = [];
-  private _model: IContents.IModel;
+  private _sessions = new Vector<Session.IModel>();
+  private _items = new Vector<Contents.IModel>();
+  private _paths: string[] = [];
+  private _model: Contents.IModel;
   private _pendingPath: string = null;
   private _pending: Promise<void> = null;
 }
@@ -440,47 +458,6 @@ namespace Private {
    */
   export
   function normalizePath(root: string, path: string): string {
-    // Current directory
-    if (path === '.') {
-      return root;
-    }
-    // Root path.
-    if (path.indexOf('/') === 0) {
-      path = path.slice(1, path.length);
-      root = '';
-    // Current directory.
-    } else if (path.indexOf('./') === 0) {
-      path = path.slice(2, path.length);
-    // Grandparent directory.
-    } else if (path.indexOf('../../') === 0) {
-      let parts = root.split('/');
-      root = parts.splice(0, parts.length - 2).join('/');
-      path = path.slice(6, path.length);
-    // Parent directory.
-    } else if (path.indexOf('../') === 0) {
-      let parts = root.split('/');
-      root = parts.splice(0, parts.length - 1).join('/');
-      path = path.slice(3, path.length);
-    } else {
-      // Current directory.
-    }
-    if (path[path.length - 1] === '/') {
-      path = path.slice(0, path.length - 1);
-    }
-    // Combine the root and the path if necessary.
-    if (root && path) {
-      path = root + '/' + path;
-    } else if (root) {
-      path = root;
-    }
-    return path;
-  }
-
-  /**
-   * Work around TS 1.8 type inferencing in promises which only throw.
-   */
-  export
-  function typedThrow<T>(msg: string): T {
-    throw new Error(msg);
+    return ContentsManager.getAbsolutePath(path, root);
   }
 }
