@@ -11,7 +11,7 @@ import {
 } from 'jupyterlab/lib/notebook/codemirror/notebook/panel';
 
 import {
-  IServiceManager, ServiceManager
+  IServiceManager, ServiceManager, IAjaxSettings
 } from 'jupyter-js-services';
 
 import {
