@@ -269,7 +269,7 @@ class JupyterLabEmbeddable {
     SplitPanel.setStretch(palette, 0);
     panel.addWidget(palette);
     panel.addWidget(nbWidget);
-    Widget.attach(panel, document.body);
+    Widget.attach(panel, document.getElementById(this.div_id));
 
     SplitPanel.setStretch(nbWidget, 1);
     window.onresize = () => panel.update();
