@@ -135,7 +135,7 @@ class ServiceManagerOptions implements ServiceManager.IOptions {
 }
 
 function main(): void {
-  let jl = new JupyterLabEmbeddable('jupyter-notebook-wrapper', 'test.ipynb', null, 'http://localhost:8888');
+  let jl = new JupyterLabEmbeddable('jupyter-notebook-wrapper', 'test.ipynb', undefined, undefined, 'http://localhost:8888');
   jl.embedJupyterLabUI();
 }
 
@@ -144,12 +144,19 @@ class JupyterLabEmbeddable {
   public NOTEBOOK = 'test.ipynb';
   public div_id = 'jupyter-notebook-wrapper';
   public serviceManagerOptions: ServiceManagerOptions = {};
+  public kernelModel: Kernel.IModel;
 
-  constructor(div_id: string, notebook_name: string, ajaxSettings?: IAjaxSettings, baseUrl?: string) {
+  constructor(div_id: string, notebook_name: string, kernelId?:string, ajaxSettings?: IAjaxSettings, baseUrl?: string) {
     this.div_id = div_id;
     this.NOTEBOOK = notebook_name;
     this.serviceManagerOptions.ajaxSettings = ajaxSettings; 
     this.serviceManagerOptions.baseUrl = baseUrl;
+
+    if (kernelId != null) {
+      this.kernelModel = { "id": kernelId }
+    } else {
+      this.kernelModel = null;
+    }
   }
 
   /**
@@ -259,7 +266,7 @@ class JupyterLabEmbeddable {
 
     this.activateWidgetExtension(null, docRegistry);
 
-    let nbWidget = docManager.open(this.NOTEBOOK) as NotebookPanel;
+    let nbWidget = docManager.open(this.NOTEBOOK, undefined, this.kernelModel) as NotebookPanel;
     let palette = new CommandPalette({ commands, keymap });
 
     let panel = new SplitPanel();
