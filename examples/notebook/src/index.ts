@@ -146,14 +146,14 @@ class JupyterLabEmbeddable {
   public serviceManagerOptions: ServiceManagerOptions = {};
   public kernelModel: Kernel.IModel;
 
-  constructor(div_id: string, notebook_name: string, kernelId?:string, ajaxSettings?: IAjaxSettings, baseUrl?: string) {
+  constructor(div_id: string, notebook_name: string, kernelName?:string, ajaxSettings?: IAjaxSettings, baseUrl?: string) {
     this.div_id = div_id;
     this.NOTEBOOK = notebook_name;
     this.serviceManagerOptions.ajaxSettings = ajaxSettings; 
     this.serviceManagerOptions.baseUrl = baseUrl;
 
-    if (kernelId != null) {
-      this.kernelModel = { "id": kernelId }
+    if (kernelName != null) {
+      this.kernelModel = { "name": kernelName }
     } else {
       this.kernelModel = null;
     }
