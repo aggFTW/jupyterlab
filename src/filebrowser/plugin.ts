@@ -2,16 +2,12 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  each
+  each, map, toArray
 } from 'phosphor/lib/algorithm/iteration';
 
 import {
   DisposableSet
 } from 'phosphor/lib/core/disposable';
-
-import {
-  FocusTracker
-} from 'phosphor/lib/ui/focustracker';
 
 import {
   Menu
@@ -30,6 +26,10 @@ import {
 } from '../commandpalette';
 
 import {
+  InstanceTracker
+} from '../common/instancetracker';
+
+import {
   DocumentManager
 } from '../docmanager';
 
@@ -46,7 +46,7 @@ import {
 } from '../services';
 
 import {
-  FileBrowserModel, FileBrowserWidget, IPathTracker, IWidgetOpener
+  FileBrowserModel, FileBrowser, IPathTracker
 } from './';
 
 
@@ -78,15 +78,18 @@ const cmdIds = {
   toggleBrowser: 'file-browser:toggle'
 };
 
+/**
+ * The widget instance tracker for the file browser plugin.
+ */
+const tracker = new InstanceTracker<Widget>();
+
 
 /**
  * Activate the file browser.
  */
 function activateFileBrowser(app: JupyterLab, manager: IServiceManager, registry: IDocumentRegistry, mainMenu: IMainMenu, palette: ICommandPalette): IPathTracker {
   let id = 0;
-  let tracker = new FocusTracker<Widget>();
-
-  let opener: IWidgetOpener = {
+  let opener: DocumentManager.IWidgetOpener = {
     open: widget => {
       if (!widget.id) {
         widget.id = `document-manager-${++id}`;
@@ -101,16 +104,14 @@ function activateFileBrowser(app: JupyterLab, manager: IServiceManager, registry
   let { commands, keymap } = app;
   let docManager = new DocumentManager({ registry, manager, opener });
   let fbModel = new FileBrowserModel({ manager });
-  let fbWidget = new FileBrowserWidget({
+  let fbWidget = new FileBrowser({
     commands: commands,
     keymap: keymap,
     manager: docManager,
-    model: fbModel,
-    opener: opener
+    model: fbModel
   });
 
   let category = 'File Operations';
-  let creators = registry.listCreators();
   let creatorCmds: { [key: string]: DisposableSet } = Object.create(null);
 
   let addCreator = (name: string) => {
@@ -125,9 +126,14 @@ function activateFileBrowser(app: JupyterLab, manager: IServiceManager, registry
     disposables.add(palette.addItem({ command, category }));
   };
 
-  for (let creator of creators) {
+  // Sync tracker with currently focused widget.
+  app.shell.currentChanged.connect((sender, args) => {
+    tracker.sync(args.newValue);
+  });
+
+  each(registry.creators(), creator => {
     addCreator(creator.name);
-  }
+  });
 
   // Add a context menu to the dir listing.
   let node = fbWidget.node.getElementsByClassName('jp-DirListing-content')[0];
@@ -135,7 +141,10 @@ function activateFileBrowser(app: JupyterLab, manager: IServiceManager, registry
     event.preventDefault();
     let path = fbWidget.pathForClick(event) || '';
     let ext = '.' + path.split('.').pop();
-    let widgetNames = registry.listWidgetFactories(ext);
+    let factories = registry.preferredWidgetFactories(ext);
+    let widgetNames = toArray(map(factories, factory => {
+      return factory.name;
+    }));
     let prefix = `file-browser-contextmenu-${++Private.id}`;
     let openWith: Menu = null;
     if (path && widgetNames.length > 1) {
@@ -160,7 +169,7 @@ function activateFileBrowser(app: JupyterLab, manager: IServiceManager, registry
     menu.open(event.clientX, event.clientY);
   });
 
-  addCommands(app, tracker, fbWidget, docManager);
+  addCommands(app, fbWidget, docManager);
 
   [
     cmdIds.save,
@@ -201,7 +210,7 @@ function activateFileBrowser(app: JupyterLab, manager: IServiceManager, registry
 /**
  * Add the filebrowser commands to the application's command registry.
  */
-function addCommands(app: JupyterLab, tracker: FocusTracker<Widget>, fbWidget: FileBrowserWidget, docManager: DocumentManager): void {
+function addCommands(app: JupyterLab, fbWidget: FileBrowser, docManager: DocumentManager): void {
   let commands = app.commands;
   let fbModel = fbWidget.model;
 
@@ -260,7 +269,7 @@ function addCommands(app: JupyterLab, tracker: FocusTracker<Widget>, fbWidget: F
   commands.addCommand(cmdIds.closeAllFiles, {
     label: 'Close All',
     execute: () => {
-      each(tracker.widgets, widget => widget.close());
+      tracker.forEach(widget => { widget.close(); });
     }
   });
   commands.addCommand(cmdIds.showBrowser, {
@@ -310,7 +319,7 @@ function createMenu(app: JupyterLab, creatorCmds: string[]): Menu {
 /**
  * Create a context menu for the file browser listing.
  */
-function createContextMenu(fbWidget: FileBrowserWidget, openWith: Menu):  Menu {
+function createContextMenu(fbWidget: FileBrowser, openWith: Menu):  Menu {
   let { commands, keymap } = fbWidget;
   let menu = new Menu({ commands, keymap });
   let prefix = `file-browser-${++Private.id}`;

@@ -4,8 +4,8 @@
 import expect = require('expect.js');
 
 import {
-  IKernel, Kernel
-} from 'jupyter-js-services';
+  Kernel, nbformat
+} from '@jupyterlab/services';
 
 import {
   deepEqual
@@ -14,10 +14,6 @@ import {
 import {
   OutputAreaModel
 } from '../../../../lib/notebook/output-area/model';
-
-import {
-  nbformat
-} from '../../../../lib/notebook/notebook/nbformat';
 
 
 /**
@@ -92,8 +88,8 @@ describe('notebook/output-area/model', () => {
           expect(args.type).to.be('add');
           expect(args.oldIndex).to.be(-1);
           expect(args.newIndex).to.be(0);
-          expect(args.oldValue).to.be(void 0);
-          expect(deepEqual(args.newValue as nbformat.IOutput, DEFAULT_OUTPUTS[0]));
+          expect(args.oldValues.length).to.be(0);
+          expect(deepEqual(args.newValues[0] as nbformat.IOutput, DEFAULT_OUTPUTS[0]));
           called = true;
         });
         model.add(DEFAULT_OUTPUTS[0]);
@@ -203,7 +199,7 @@ describe('notebook/output-area/model', () => {
 
     describe('#execute()', () => {
 
-      let kernel: IKernel;
+      let kernel: Kernel.IKernel;
 
       beforeEach((done) => {
         Kernel.startNew().then(k => {

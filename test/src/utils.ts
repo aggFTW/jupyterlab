@@ -8,20 +8,16 @@ import {
 } from 'simulate-event';
 
 import {
-  ServiceManager, utils, IServiceManager
-} from 'jupyter-js-services';
+  ServiceManager, utils
+} from '@jupyterlab/services';
 
 import {
   Widget
 } from 'phosphor/lib/ui/widget';
 
 import {
-  TextModelFactory, IDocumentModel
+  TextModelFactory, DocumentRegistry, Context
 } from '../../lib/docregistry';
-
-import {
-  Context
-} from '../../lib/docmanager/context';
 
 import {
   INotebookModel
@@ -58,7 +54,7 @@ function defaultRenderMime(): RenderMime {
  * Create a context for a file.
  */
 export
-function createFileContext(path?: string): Promise<Context<IDocumentModel>> {
+function createFileContext(path?: string): Promise<Context<DocumentRegistry.IModel>> {
   return Private.servicePromise.then(manager => {
     let factory = Private.textFactory;
     path = path || utils.uuid() + '.txt';
@@ -132,7 +128,7 @@ function dismissDialog(host: HTMLElement = document.body): Promise<void> {
  */
 namespace Private {
   export
-  const servicePromise: Promise<IServiceManager> = ServiceManager.create();
+  const servicePromise: Promise<ServiceManager.IManager> = ServiceManager.create();
 
   export
   const textFactory = new TextModelFactory();

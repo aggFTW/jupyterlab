@@ -8,7 +8,7 @@ import 'codemirror/mode/meta';
 
 import {
   Contents, Kernel
-} from 'jupyter-js-services';
+} from '@jupyterlab/services';
 
 import {
   defineSignal, ISignal
@@ -23,8 +23,7 @@ import {
 } from '../common/interfaces';
 
 import {
-  IDocumentModel, IDocumentContext, IModelFactory,
-  IWidgetFactory
+  DocumentRegistry
 } from './index';
 
 
@@ -32,7 +31,7 @@ import {
  * The default implementation of a document model.
  */
 export
-class DocumentModel implements IDocumentModel {
+class DocumentModel implements DocumentRegistry.IModel {
   /**
    * Construct a new document model.
    */
@@ -43,12 +42,12 @@ class DocumentModel implements IDocumentModel {
   /**
    * A signal emitted when the document content changes.
    */
-  contentChanged: ISignal<IDocumentModel, void>;
+  contentChanged: ISignal<DocumentRegistry.IModel, void>;
 
   /**
    * A signal emitted when the document state changes.
    */
-  stateChanged: ISignal<IDocumentModel, IChangedArgs<any>>;
+  stateChanged: ISignal<DocumentRegistry.IModel, IChangedArgs<any>>;
 
   /**
    * Get whether the model factory has been disposed.
@@ -169,7 +168,7 @@ defineSignal(DocumentModel.prototype, 'stateChanged');
  * An implementation of a model factory for text files.
  */
 export
-class TextModelFactory implements IModelFactory<IDocumentModel> {
+class TextModelFactory implements DocumentRegistry.IModelFactory<DocumentRegistry.IModel> {
   /**
    * The name of the model type.
    *
@@ -220,7 +219,7 @@ class TextModelFactory implements IModelFactory<IDocumentModel> {
    *
    * @returns A new document model.
    */
-  createNew(languagePreference?: string): IDocumentModel {
+  createNew(languagePreference?: string): DocumentRegistry.IModel {
     return new DocumentModel(languagePreference);
   }
 
@@ -278,11 +277,23 @@ class Base64ModelFactory extends TextModelFactory {
  * The default implemetation of a widget factory.
  */
 export
-abstract class ABCWidgetFactory<T extends Widget, U extends IDocumentModel> implements IWidgetFactory<T, U> {
+abstract class ABCWidgetFactory<T extends Widget, U extends DocumentRegistry.IModel> implements DocumentRegistry.IWidgetFactory<T, U> {
+  /**
+   * Construct a new `ABCWidgetFactory`.
+   */
+  constructor(options: DocumentRegistry.IWidgetFactoryOptions) {
+    this._name = options.name;
+    this._defaultFor = options.defaultFor ? options.defaultFor.slice() : [];
+    this._fileExtensions = options.fileExtensions.slice();
+    this._modelName = options.modelName || 'text';
+    this._preferKernel = !!options.preferKernel;
+    this._canStartKernel = !!options.canStartKernel;
+  }
+
   /**
    * A signal emitted when a widget is created.
    */
-  widgetCreated: ISignal<IWidgetFactory<T, U>, T>;
+  widgetCreated: ISignal<DocumentRegistry.IWidgetFactory<T, U>, T>;
 
   /**
    * Get whether the model factory has been disposed.
@@ -299,14 +310,71 @@ abstract class ABCWidgetFactory<T extends Widget, U extends IDocumentModel> impl
   }
 
   /**
+   * The name of the widget to display in dialogs.
+   */
+  get name(): string {
+    return this._name;
+  }
+
+  /**
+   * The file extensions the widget can view.
+   */
+  get fileExtensions(): string[] {
+    return this._fileExtensions.slice();
+  }
+
+  /**
+   * The registered name of the model type used to create the widgets.
+   */
+  get modelName(): string {
+    return this._modelName;
+  }
+
+  /**
+   * The file extensions for which the factory should be the default.
+   */
+  get defaultFor(): string[] {
+    return this._defaultFor.slice();
+  }
+
+  /**
+   * Whether the widgets prefer having a kernel started.
+   */
+  get preferKernel(): boolean {
+    return this._preferKernel;
+  }
+
+  /**
+   * Whether the widgets can start a kernel when opened.
+   */
+  get canStartKernel(): boolean {
+    return this._canStartKernel;
+  }
+
+  /**
    * Create a new widget given a document model and a context.
    *
    * #### Notes
    * It should emit the [widgetCreated] signal with the new widget.
    */
-  abstract createNew(context: IDocumentContext<U>, kernel?: Kernel.IModel): T;
+  createNew(context: DocumentRegistry.IContext<U>): T {
+    let widget = this.createNewWidget(context);
+    this.widgetCreated.emit(widget);
+    return widget;
+  }
+
+  /**
+   * Create a widget for a context.
+   */
+  protected abstract createNewWidget(context: DocumentRegistry.IContext<U>): T;
 
   private _isDisposed = false;
+  private _name: string;
+  private _canStartKernel: boolean;
+  private _preferKernel: boolean;
+  private _modelName: string;
+  private _fileExtensions: string[];
+  private _defaultFor: string[];
 }
 
 

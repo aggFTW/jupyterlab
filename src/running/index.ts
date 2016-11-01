@@ -2,8 +2,8 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IServiceManager, Session, TerminalSession
-} from 'jupyter-js-services';
+  ServiceManager, Session, TerminalSession
+} from '@jupyterlab/services';
 
 import {
   Message
@@ -97,6 +97,11 @@ const SHUTDOWN_BUTTON_CLASS = 'jp-RunningSessions-itemShutdown';
 const NOTEBOOK_ICON_CLASS = 'jp-mod-notebook';
 
 /**
+ * The class name added to a console icon.
+ */
+const CONSOLE_ICON_CLASS = 'jp-mod-console';
+
+/**
  * The class name added to a file icon.
  */
 const FILE_ICON_CLASS = 'jp-mod-file';
@@ -110,6 +115,12 @@ const TERMINAL_ICON_CLASS = 'jp-mod-terminal';
  * The duration of auto-refresh in ms.
  */
 const REFRESH_DURATION = 10000;
+
+/**
+ * A regex for console names.
+ */
+export
+const CONSOLE_REGEX = /^console-(\d)+-[0-9a-f]+$/;
 
 
 /**
@@ -288,7 +299,7 @@ class RunningSessions extends Widget {
     for (let i = 0; i < this._runningSessions.length; i++) {
       let node = sessionList.children[i] as HTMLLIElement;
       let model = this._runningSessions[i];
-      let kernelName = kernelspecs[model.kernel.name].spec.display_name;
+      let kernelName = kernelspecs[model.kernel.name].display_name;
       renderer.updateSessionNode(node, model, kernelName);
     }
   }
@@ -355,7 +366,7 @@ class RunningSessions extends Widget {
     this._runningSessions = [];
     for (let session of models) {
       let name = session.notebook.path.split('/').pop();
-      if (name.indexOf('.') !== -1) {
+      if (name.indexOf('.') !== -1 || CONSOLE_REGEX.test(name)) {
         this._runningSessions.push(session);
       }
     }
@@ -370,7 +381,7 @@ class RunningSessions extends Widget {
     this.update();
   }
 
-  private _manager: IServiceManager = null;
+  private _manager: ServiceManager.IManager = null;
   private _renderer: RunningSessions.IRenderer = null;
   private _runningSessions: Session.IModel[] = [];
   private _runningTerminals: TerminalSession.IModel[] = [];
@@ -396,7 +407,7 @@ namespace RunningSessions {
     /**
      * A service manager instance.
      */
-    manager: IServiceManager;
+    manager: ServiceManager.IManager;
 
     /**
      * The renderer for the running sessions widget.
@@ -672,13 +683,18 @@ namespace RunningSessions {
      */
     updateSessionNode(node: HTMLLIElement, model: Session.IModel, kernelName: string): void {
       let icon = findElement(node, ITEM_ICON_CLASS);
-      if (model.notebook.path.indexOf('.ipynb') !== -1) {
+      let path = model.notebook.path;
+      let name = path.split('/').pop();
+      if (name.indexOf('.ipynb') !== -1) {
         icon.className = `${ITEM_ICON_CLASS} ${NOTEBOOK_ICON_CLASS}`;
+      } else if (CONSOLE_REGEX.test(name)) {
+        icon.className = `${ITEM_ICON_CLASS} ${CONSOLE_ICON_CLASS}`;
+        path = `Console ${name.match(CONSOLE_REGEX)[1]}`;
       } else {
         icon.className = `${ITEM_ICON_CLASS} ${FILE_ICON_CLASS}`;
       }
       let label = findElement(node, ITEM_LABEL_CLASS);
-      label.textContent = model.notebook.path;
+      label.textContent = path;
       let title = (
         `Path: ${model.notebook.path}\n` +
         `Kernel: ${kernelName}`

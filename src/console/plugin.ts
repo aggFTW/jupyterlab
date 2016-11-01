@@ -2,16 +2,16 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  ContentsManager, Kernel, ISession, Session, utils
-} from 'jupyter-js-services';
+  ContentsManager, Kernel, Session, utils
+} from '@jupyterlab/services';
+
+import {
+  find
+} from 'phosphor/lib/algorithm/searching';
 
 import {
   JSONObject
 } from 'phosphor/lib/algorithm/json';
-
-import {
-  FocusTracker
-} from 'phosphor/lib/ui/focustracker';
 
 import {
   Menu
@@ -28,6 +28,10 @@ import {
 import {
   dateTime
 } from '../common/dates';
+
+import {
+  InstanceTracker
+} from '../common/instancetracker';
 
 import {
   selectKernel
@@ -87,14 +91,24 @@ const LANDSCAPE_ICON_CLASS = 'jp-MainAreaLandscapeIcon';
 /**
  * The class name for the console icon from the default theme.
  */
-const CONSOLE_ICON_CLASS = 'jp-ImageConsole';
+const CONSOLE_ICON_CLASS = 'jp-ImageCodeConsole';
+
+/**
+ * A regex for console names.
+ */
+const CONSOLE_REGEX = /^console-(\d)+-[0-9a-f]+$/;
+
+/**
+ * The console panel instance tracker.
+ */
+const tracker = new InstanceTracker<ConsolePanel>();
 
 
 /**
  * The interface for a start console.
  */
 interface ICreateConsoleArgs extends JSONObject {
-  sessionId?: string;
+  id?: string;
   path?: string;
   kernel?: Kernel.IModel;
   preferredLanguage?: string;
@@ -105,7 +119,6 @@ interface ICreateConsoleArgs extends JSONObject {
  * Activate the console extension.
  */
 function activateConsole(app: JupyterLab, services: IServiceManager, rendermime: IRenderMime, mainMenu: IMainMenu, inspector: IInspector, palette: ICommandPalette, pathTracker: IPathTracker, renderer: ConsoleContent.IRenderer): IConsoleTracker {
-  let tracker = new FocusTracker<ConsolePanel>();
   let manager = services.sessions;
   let specs = services.kernelspecs;
 
@@ -116,6 +129,14 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
   menu.title.label = 'Console';
 
   let command: string;
+
+  // Sync tracker and set the source of the code inspector.
+  app.shell.currentChanged.connect((sender, args) => {
+    let widget = tracker.sync(args.newValue);
+    if (widget) {
+      inspector.source = widget.content.inspectionHandler;
+    }
+  });
 
   // Set the main menu title.
   menu.title.label = 'Console';
@@ -134,31 +155,22 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
   commands.addCommand(command, {
     label: 'Clear Cells',
     execute: () => {
-      if (tracker.currentWidget) {
-        tracker.currentWidget.content.clear();
+      let current = tracker.currentWidget;
+      if (current) {
+        current.content.clear();
       }
     }
   });
   palette.addItem({ command, category });
   menu.addItem({ command });
 
-
-  command = 'console:dismiss-completer';
-  commands.addCommand(command, {
-    execute: () => {
-      if (tracker.currentWidget) {
-        tracker.currentWidget.content.dismissCompleter();
-      }
-    }
-  });
-
-
   command = 'console:run';
   commands.addCommand(command, {
     label: 'Run Cell',
     execute: () => {
-      if (tracker.currentWidget) {
-        tracker.currentWidget.content.execute();
+      let current = tracker.currentWidget;
+      if (current) {
+        current.content.execute();
       }
     }
   });
@@ -170,8 +182,9 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
   commands.addCommand(command, {
     label: 'Run Cell (forced)',
     execute: () => {
-      if (tracker.currentWidget) {
-        tracker.currentWidget.content.execute(true);
+      let current = tracker.currentWidget;
+      if (current) {
+        current.content.execute(true);
       }
     }
   });
@@ -182,8 +195,9 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
   commands.addCommand(command, {
     label: 'Insert Line Break',
     execute: () => {
-      if (tracker.currentWidget) {
-        tracker.currentWidget.content.insertLinebreak();
+      let current = tracker.currentWidget;
+      if (current) {
+        current.content.insertLinebreak();
       }
     }
   });
@@ -194,8 +208,9 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
   commands.addCommand(command, {
     label: 'Interrupt Kernel',
     execute: () => {
-      if (tracker.currentWidget) {
-        let kernel = tracker.currentWidget.content.session.kernel;
+      let current = tracker.currentWidget;
+      if (current) {
+        let kernel = current.content.session.kernel;
         if (kernel) {
           kernel.interrupt();
         }
@@ -215,9 +230,12 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
       let name = `Console ${++count}`;
 
       // If we get a session, use it.
-      if (args.sessionId) {
-        return manager.connectTo(args.sessionId).then(session => {
+      if (args.id) {
+        return manager.connectTo(args.id).then(session => {
+          name = session.path.split('/').pop();
+          name = `Console ${name.match(CONSOLE_REGEX)[1]}`;
           createConsole(session, name);
+          manager.listRunning();  // Trigger a refresh.
           return session.id;
         });
       }
@@ -228,7 +246,7 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
       if (ContentsManager.extname(path)) {
         path = ContentsManager.dirname(path);
       }
-      path = `${path}/console-${utils.uuid()}`;
+      path = `${path}/console-${count}-${utils.uuid()}`;
 
       // Get the kernel model.
       return getKernel(args, name).then(kernel => {
@@ -243,6 +261,7 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
         };
         return manager.startNew(options).then(session => {
           createConsole(session, name);
+          manager.listRunning();  // Trigger a refresh.
           return session.id;
         });
       });
@@ -253,11 +272,28 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
   commands.addCommand(command, {
     execute: (args: JSONObject) => {
       let id = args['id'];
-      for (let i = 0; i < tracker.widgets.length; i++) {
-        let widget = tracker.widgets.at(i);
+      tracker.find(widget => {
         if (widget.content.session.id === id) {
           widget.content.inject(args['code'] as string);
+          return true;
         }
+      });
+    }
+  });
+
+  command = 'console:open';
+  commands.addCommand(command, {
+    execute: (args: JSONObject) => {
+      let id = args['id'];
+      let widget = tracker.find(value => {
+        if (value.content.session.id === id) {
+          return true;
+        }
+      });
+      if (widget) {
+        app.shell.activateMain(widget.id);
+      } else {
+        app.commands.execute('console:create', { id });
       }
     }
   });
@@ -283,14 +319,16 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
 
   let displayNameMap: { [key: string]: string } = Object.create(null);
   for (let kernelName in specs.kernelspecs) {
-    let displayName = specs.kernelspecs[kernelName].spec.display_name;
+    let displayName = specs.kernelspecs[kernelName].display_name;
     displayNameMap[kernelName] = displayName;
   }
+
+  let id = 0; // The ID counter for notebook panels.
 
   /**
    * Create a console for a given session.
    */
-  function createConsole(session: ISession, name: string): void {
+  function createConsole(session: Session.ISession, name: string): void {
     let panel = new ConsolePanel({
       session,
       rendermime: rendermime.clone(),
@@ -303,7 +341,8 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
       path: session.path,
       connected: new Date()
     };
-    panel.id = `console-${session.id}`;
+    // If the console panel does not have an ID, assign it one.
+    panel.id = panel.id || `console-${++id}`;
     panel.title.label = name;
     panel.title.caption = Private.caption(captionOptions);
     panel.title.icon = `${LANDSCAPE_ICON_CLASS} ${CONSOLE_ICON_CLASS}`;
@@ -314,19 +353,18 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
       captionOptions.executed = executed;
       panel.title.caption = Private.caption(captionOptions);
     });
-    // Set the source of the code inspector to the current console.
-    panel.activated.connect(() => {
-      inspector.source = panel.content.inspectionHandler;
-    });
     // Update the caption of the tab when the kernel changes.
     panel.content.session.kernelChanged.connect(() => {
       let name = panel.content.session.kernel.name;
-      name = specs.kernelspecs[name].spec.display_name;
+      name = specs.kernelspecs[name].display_name;
       captionOptions.displayName = name;
       captionOptions.connected = new Date();
       captionOptions.executed = null;
       panel.title.caption = Private.caption(captionOptions);
     });
+    // Immediately set the inspector source to the current console.
+    inspector.source = panel.content.inspectionHandler;
+    // Add the console panel to the tracker.
     tracker.add(panel);
   }
 
@@ -334,14 +372,15 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
   commands.addCommand(command, {
     label: 'Switch Kernel',
     execute: () => {
-      if (!tracker.currentWidget) {
+      let current = tracker.currentWidget;
+      if (!current) {
         return;
       }
-      let widget = tracker.currentWidget.content;
+      let widget = current.content;
       let session = widget.session;
       let lang = '';
       if (session.kernel) {
-        lang = specs.kernelspecs[session.kernel.name].spec.language;
+        lang = specs.kernelspecs[session.kernel.name].language;
       }
       manager.listRunning().then((sessions: Session.IModel[]) => {
         let options = {
@@ -354,10 +393,9 @@ function activateConsole(app: JupyterLab, services: IServiceManager, rendermime:
         };
         return selectKernel(options);
       }).then((kernelId: Kernel.IModel) => {
+        // If the user cancels, kernelId will be void and should be ignored.
         if (kernelId) {
           session.changeKernel(kernelId);
-        } else {
-          session.kernel.shutdown();
         }
       });
     }

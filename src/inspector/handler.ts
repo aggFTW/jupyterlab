@@ -2,8 +2,8 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IKernel, KernelMessage
-} from 'jupyter-js-services';
+  Kernel, KernelMessage
+} from '@jupyterlab/services';
 
 import {
   IDisposable
@@ -38,24 +38,25 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
   /**
    * Construct a new inspection handler for a widget.
    */
-  constructor(rendermime: RenderMime) {
-    this._rendermime = rendermime;
+  constructor(options: InspectionHandler.IOptions) {
+    this._kernel = options.kernel || null;
+    this._rendermime = options.rendermime;
   }
 
   /**
    * A signal emitted when the handler is disposed.
    */
-  disposed: ISignal<InspectionHandler, void>;
+  readonly disposed: ISignal<InspectionHandler, void>;
 
   /**
    * A signal emitted when inspector should clear all items with no history.
    */
-  ephemeralCleared: ISignal<InspectionHandler, void>;
+  readonly ephemeralCleared: ISignal<InspectionHandler, void>;
 
   /**
    * A signal emitted when an inspector value is generated.
    */
-  inspected: ISignal<InspectionHandler, Inspector.IInspectorUpdate>;
+  readonly inspected: ISignal<InspectionHandler, Inspector.IInspectorUpdate>;
 
   /**
    * The cell widget used by the inspection handler.
@@ -84,10 +85,10 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
   /**
    * The kernel used by the inspection handler.
    */
-  get kernel(): IKernel {
+  get kernel(): Kernel.IKernel {
     return this._kernel;
   }
-  set kernel(value: IKernel) {
+  set kernel(value: Kernel.IKernel) {
     this._kernel = value;
   }
 
@@ -170,7 +171,7 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
 
   private _activeCell: BaseCellWidget = null;
   private _isDisposed = false;
-  private _kernel: IKernel = null;
+  private _kernel: Kernel.IKernel = null;
   private _pending = 0;
   private _rendermime: RenderMime = null;
 }
@@ -180,3 +181,26 @@ class InspectionHandler implements IDisposable, Inspector.IInspectable {
 defineSignal(InspectionHandler.prototype, 'ephemeralCleared');
 defineSignal(InspectionHandler.prototype, 'disposed');
 defineSignal(InspectionHandler.prototype, 'inspected');
+
+
+/**
+ * A namespace for inspection handler statics.
+ */
+export
+namespace InspectionHandler {
+  /**
+   * The instantiation options for an inspection handler.
+   */
+  export
+  interface IOptions {
+    /**
+     * The kernel for the inspection handler.
+     */
+    kernel?: Kernel.IKernel;
+
+    /**
+     * The mime renderer for the inspection handler.
+     */
+    rendermime: RenderMime;
+  }
+}

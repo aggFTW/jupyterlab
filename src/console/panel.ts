@@ -2,24 +2,16 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  ISession
-} from 'jupyter-js-services';
+  Session
+} from '@jupyterlab/services';
 
 import {
   Message
 } from 'phosphor/lib/core/messaging';
 
 import {
-  defineSignal, ISignal
-} from 'phosphor/lib/core/signaling';
-
-import {
   Panel
 } from 'phosphor/lib/ui/panel';
-
-import {
-  showDialog
-} from '../dialog';
 
 import {
   IRenderMime
@@ -58,11 +50,6 @@ class ConsolePanel extends Panel {
   }
 
   /**
-   * A signal emitted when the console panel has been activated.
-   */
-  activated: ISignal<ConsolePanel, void>;
-
-  /**
    * The console widget used by the panel.
    *
    * #### Notes
@@ -92,39 +79,18 @@ class ConsolePanel extends Panel {
    */
   protected onActivateRequest(msg: Message): void {
     this.content.activate();
-    this.activated.emit(void 0);
   }
 
   /**
    * Handle `'close-request'` messages.
    */
   protected onCloseRequest(msg: Message): void {
-    let session = this.content.session;
-    if (!session.kernel) {
-      this.dispose();
-    }
-    session.kernel.getSpec().then(spec => {
-      let name = spec.display_name;
-      return showDialog({
-        title: 'Shut down kernel?',
-        body: `Shut down ${name}?`
-      });
-    }).then(value => {
-      if (value && value.text === 'OK') {
-        return session.shutdown();
-      }
-    }).then(() => {
-      super.onCloseRequest(msg);
-      this.dispose();
-    });
+    super.onCloseRequest(msg);
+    this.dispose();
   }
 
   private _content: ConsoleContent = null;
 }
-
-
-// Define the signals for the `ConsolePanel` class.
-defineSignal(ConsolePanel.prototype, 'activated');
 
 
 /**
@@ -160,6 +126,6 @@ namespace ConsolePanel {
     /**
      * The session for the console panel.
      */
-    session: ISession;
+    session: Session.ISession;
   }
 }

@@ -4,38 +4,38 @@
 import expect = require('expect.js');
 
 import {
-  Kernel
-} from 'jupyter-js-services';
-
-import {
   Widget
 } from 'phosphor/lib/ui/widget';
 
 import {
   ABCWidgetFactory, Base64ModelFactory, DocumentModel,
-  IDocumentModel, IDocumentContext, TextModelFactory
+  DocumentRegistry, TextModelFactory, Context
 } from '../../../lib/docregistry';
-
-import {
-  Context
-} from '../../../lib/docmanager/context';
 
 import {
   createFileContext
 } from '../utils';
 
 
-class WidgetFactory extends ABCWidgetFactory<Widget, IDocumentModel> {
+class WidgetFactory extends ABCWidgetFactory<Widget, DocumentRegistry.IModel> {
 
-  createNew(context: IDocumentContext<IDocumentModel>, kernel?: Kernel.IModel): Widget {
+  createNewWidget(context: DocumentRegistry.IContext<DocumentRegistry.IModel>): Widget {
     return new Widget();
   }
 }
 
 
+function createFactory(): WidgetFactory {
+  return new WidgetFactory({
+    name: 'test',
+    fileExtensions: []
+  });
+}
+
+
 describe('docmanager/default', () => {
 
-  let context: Context<IDocumentModel>;
+  let context: Context<DocumentRegistry.IModel>;
 
   beforeEach((done) => {
     createFileContext().then(c => {
@@ -53,7 +53,7 @@ describe('docmanager/default', () => {
     describe('#isDisposed', () => {
 
       it('should get whether the factory has been disposed', () => {
-        let factory = new WidgetFactory();
+        let factory = createFactory();
         expect(factory.isDisposed).to.be(false);
         factory.dispose();
         expect(factory.isDisposed).to.be(true);
@@ -64,13 +64,13 @@ describe('docmanager/default', () => {
     describe('#dispose()', () => {
 
       it('should dispose of the resources held by the factory', () => {
-        let factory = new WidgetFactory();
+        let factory = createFactory();
         factory.dispose();
         expect(factory.isDisposed).to.be(true);
       });
 
       it('should be safe to call multiple times', () => {
-        let factory = new WidgetFactory();
+        let factory = createFactory();
         factory.dispose();
         factory.dispose();
         expect(factory.isDisposed).to.be(true);
@@ -81,7 +81,7 @@ describe('docmanager/default', () => {
     describe('#createNew()', () => {
 
       it('should create a new widget given a document model and a context', () => {
-        let factory = new WidgetFactory();
+        let factory = createFactory();
         let widget = factory.createNew(context);
         expect(widget).to.be.a(Widget);
       });

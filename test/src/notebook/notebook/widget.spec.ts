@@ -4,6 +4,10 @@
 import expect = require('expect.js');
 
 import {
+  nbformat
+} from '@jupyterlab/services';
+
+import {
   sendMessage, Message
 } from 'phosphor/lib/core/messaging';
 
@@ -119,11 +123,6 @@ class LogNotebook extends Notebook {
     this.methods.push('onActivateRequest');
   }
 
-  protected onDeactivateRequest(msg: Message): void {
-    super.onDeactivateRequest(msg);
-    this.methods.push('onDeactivateRequest');
-  }
-
   protected onUpdateRequest(msg: Message): void {
     super.onUpdateRequest(msg);
     this.methods.push('onUpdateRequest');
@@ -203,7 +202,7 @@ describe('notebook/notebook/widget', () => {
         let called = false;
         widget.modelContentChanged.connect(() => { called = true; });
         let cell = widget.model.factory.createCodeCell();
-        widget.model.cells.add(cell);
+        widget.model.cells.pushBack(cell);
         expect(called).to.be(true);
       });
 
@@ -258,7 +257,7 @@ describe('notebook/notebook/widget', () => {
         let model = new NotebookModel();
         model.fromJSON(DEFAULT_CONTENT);
         widget.model = model;
-        expect(widget.childCount()).to.be(6);
+        expect(widget.widgets.length).to.be(6);
       });
 
       it('should set the mime types of the cell widgets', () => {
@@ -267,7 +266,7 @@ describe('notebook/notebook/widget', () => {
         let cursor = model.getMetadata('language_info');
         cursor.setValue({ name: 'python', codemirror_mode: 'python' });
         widget.model = model;
-        let child = widget.childAt(0);
+        let child = widget.widgets.at(0);
         expect(child.mimetype).to.be('text/x-python');
       });
 
@@ -289,14 +288,14 @@ describe('notebook/notebook/widget', () => {
           widget.model.cells.clear();
           // The model should add a single code cell.
           requestAnimationFrame(() => {
-            expect(widget.childCount()).to.be(1);
+            expect(widget.widgets.length).to.be(1);
             done();
           });
         });
 
         it('should handle a remove', () => {
-          let cell = widget.model.cells.get(1);
-          let child = widget.childAt(1);
+          let cell = widget.model.cells.at(1);
+          let child = widget.widgets.at(1);
           widget.model.cells.remove(cell);
           expect(cell.isDisposed).to.be(true);
           expect(child.isDisposed).to.be(true);
@@ -304,22 +303,22 @@ describe('notebook/notebook/widget', () => {
 
         it('should handle an add', () => {
           let cell = widget.model.factory.createCodeCell();
-          widget.model.cells.add(cell);
-          expect(widget.childCount()).to.be(7);
-          let child = widget.childAt(0);
+          widget.model.cells.pushBack(cell);
+          expect(widget.widgets.length).to.be(7);
+          let child = widget.widgets.at(0);
           expect(child.hasClass('jp-Notebook-cell')).to.be(true);
         });
 
         it('should handle a move', () => {
-          let child = widget.childAt(1);
+          let child = widget.widgets.at(1);
           widget.model.cells.move(1, 2);
-          expect(widget.childAt(2)).to.be(child);
+          expect(widget.widgets.at(2)).to.be(child);
         });
 
-        it('should handle a replace', () => {
+        it('should handle a clear', () => {
           let cell = widget.model.factory.createCodeCell();
-          widget.model.cells.replace(0, 6, [cell]);
-          expect(widget.childCount()).to.be(1);
+          widget.model.cells.clear();
+          expect(widget.widgets.length).to.be(0);
         });
 
       });
@@ -362,29 +361,25 @@ describe('notebook/notebook/widget', () => {
 
     });
 
-    describe('#childAt()', () => {
+    describe('#widgets', () => {
 
       it('should get the child widget at a specified index', () => {
         let widget = createWidget();
-        let child = widget.childAt(0);
+        let child = widget.widgets.at(0);
         expect(child).to.be.a(CodeCellWidget);
       });
 
       it('should return `undefined` if out of range', () => {
         let widget = createWidget();
-        let child = widget.childAt(1);
+        let child = widget.widgets.at(1);
         expect(child).to.be(void 0);
       });
 
-    });
-
-    describe('#childCount()', () => {
-
       it('should get the number of child widgets', () => {
         let widget = createWidget();
-        expect(widget.childCount()).to.be(1);
+        expect(widget.widgets.length).to.be(1);
         widget.model.fromJSON(DEFAULT_CONTENT);
-        expect(widget.childCount()).to.be(6);
+        expect(widget.widgets.length).to.be(6);
       });
 
     });
@@ -448,7 +443,7 @@ describe('notebook/notebook/widget', () => {
         let cursor = widget.model.getMetadata('language_info');
         cursor.setValue({ name: 'python', mimetype: 'text/x-python' });
         expect(widget.methods).to.contain('onMetadataChanged');
-        let child = widget.childAt(0);
+        let child = widget.widgets.at(0);
         expect(child.mimetype).to.be('text/x-python');
       });
 
@@ -479,7 +474,7 @@ describe('notebook/notebook/widget', () => {
 
       it('should be called when a cell is removed', () => {
         let widget = createWidget();
-        let cell = widget.model.cells.get(0);
+        let cell = widget.model.cells.at(0);
         widget.model.cells.remove(cell);
         expect(widget.methods).to.contain('onCellRemoved');
       });
@@ -540,7 +535,8 @@ describe('notebook/notebook/widget', () => {
           let model = new NotebookModel();
           let cursor = model.getMetadata('language_info');
           cursor.setValue({ name: 'python', mimetype: 'text/x-python' });
-          expect(renderer.getCodeMimetype(model)).to.be('text/x-python');
+          let info = cursor.getValue() as nbformat.ILanguageInfoMetadata;
+          expect(renderer.getCodeMimetype(info)).to.be('text/x-python');
         });
 
       });
@@ -614,7 +610,7 @@ describe('notebook/notebook/widget', () => {
           expect(args).to.be(void 0);
           called = true;
         });
-        widget.select(widget.childAt(1));
+        widget.select(widget.widgets.at(1));
         expect(called).to.be(true);
       });
 
@@ -622,9 +618,9 @@ describe('notebook/notebook/widget', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
         let called = false;
-        widget.select(widget.childAt(1));
+        widget.select(widget.widgets.at(1));
         widget.selectionChanged.connect(() => { called = true; });
-        widget.select(widget.childAt(1));
+        widget.select(widget.widgets.at(1));
         expect(called).to.be(false);
       });
 
@@ -679,17 +675,17 @@ describe('notebook/notebook/widget', () => {
         widget.model.fromJSON(DEFAULT_CONTENT);
         Widget.attach(widget, document.body);
         requestAnimationFrame(() => {
-          for (let i = 0; i < widget.childCount(); i++) {
-            let cell = widget.childAt(i);
+          for (let i = 0; i < widget.widgets.length; i++) {
+            let cell = widget.widgets.at(i);
             widget.select(cell);
             expect(widget.isSelected(cell)).to.be(true);
           }
           widget.mode = 'edit';
-          for (let i = 0; i < widget.childCount(); i++) {
+          for (let i = 0; i < widget.widgets.length; i++) {
             if (i === widget.activeCellIndex) {
               continue;
             }
-            let cell = widget.childAt(i);
+            let cell = widget.widgets.at(i);
             expect(widget.isSelected(cell)).to.be(false);
           }
           widget.dispose();
@@ -702,7 +698,7 @@ describe('notebook/notebook/widget', () => {
         Widget.attach(widget, document.body);
         sendMessage(widget, WidgetMessage.ActivateRequest);
         widget.mode = 'edit';
-        let cell = widget.childAt(widget.activeCellIndex);
+        let cell = widget.widgets.at(widget.activeCellIndex);
         // Wait for update-request.
         requestAnimationFrame(() => {
           // Notebook activates the editor.
@@ -718,10 +714,10 @@ describe('notebook/notebook/widget', () => {
         Widget.attach(widget, document.body);
         sendMessage(widget, WidgetMessage.ActivateRequest);
         let cell = widget.model.factory.createMarkdownCell();
-        widget.model.cells.add(cell);
-        let child = widget.childAt(widget.childCount() - 1) as MarkdownCellWidget;
+        widget.model.cells.pushBack(cell);
+        let child = widget.widgets.at(widget.widgets.length - 1) as MarkdownCellWidget;
         expect(child.rendered).to.be(true);
-        widget.activeCellIndex = widget.childCount() - 1;
+        widget.activeCellIndex = widget.widgets.length - 1;
         widget.mode = 'edit';
         requestAnimationFrame(() => {
           expect(child.rendered).to.be(false);
@@ -792,7 +788,7 @@ describe('notebook/notebook/widget', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
         widget.activeCellIndex = 1;
-        expect(widget.activeCell).to.be(widget.childAt(1));
+        expect(widget.activeCell).to.be(widget.widgets.at(1));
       });
 
     });
@@ -801,7 +797,7 @@ describe('notebook/notebook/widget', () => {
 
       it('should get the active cell widget', () => {
         let widget = createActiveWidget();
-        expect(widget.activeCell).to.be(widget.childAt(0));
+        expect(widget.activeCell).to.be(widget.widgets.at(0));
       });
 
     });
@@ -811,7 +807,7 @@ describe('notebook/notebook/widget', () => {
       it('should select a cell widget', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        let cell = widget.childAt(0);
+        let cell = widget.widgets.at(0);
         widget.select(cell);
         expect(widget.isSelected(cell)).to.be(true);
       });
@@ -819,8 +815,8 @@ describe('notebook/notebook/widget', () => {
       it('should allow multiple widgets to be selected', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        for (let i = 0; i < widget.childCount(); i++) {
-          let cell = widget.childAt(i);
+        for (let i = 0; i < widget.widgets.length; i++) {
+          let cell = widget.widgets.at(i);
           widget.select(cell);
           expect(widget.isSelected(cell)).to.be(true);
         }
@@ -833,11 +829,11 @@ describe('notebook/notebook/widget', () => {
       it('should deselect a cell', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        for (let i = 0; i < widget.childCount(); i++) {
+        for (let i = 0; i < widget.widgets.length; i++) {
           if (i === widget.activeCellIndex) {
             continue;
           }
-          let cell = widget.childAt(i);
+          let cell = widget.widgets.at(i);
           widget.select(cell);
           expect(widget.isSelected(cell)).to.be(true);
           widget.deselect(cell);
@@ -848,7 +844,7 @@ describe('notebook/notebook/widget', () => {
       it('should have no effect on the active cell', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        let cell = widget.childAt(widget.activeCellIndex);
+        let cell = widget.widgets.at(widget.activeCellIndex);
         expect(widget.isSelected(cell)).to.be(true);
         widget.deselect(cell);
         expect(widget.isSelected(cell)).to.be(true);
@@ -861,8 +857,8 @@ describe('notebook/notebook/widget', () => {
       it('should get whether the cell is selected', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        for (let i = 0; i < widget.childCount(); i++) {
-          let cell = widget.childAt(i);
+        for (let i = 0; i < widget.widgets.length; i++) {
+          let cell = widget.widgets.at(i);
           if (i === widget.activeCellIndex) {
             expect(widget.isSelected(cell)).to.be(true);
           } else {
@@ -891,14 +887,14 @@ describe('notebook/notebook/widget', () => {
       context('mousedown', () => {
 
         it('should set the active cell index', () => {
-          let child = widget.childAt(1);
+          let child = widget.widgets.at(1);
           simulate(child.node, 'mousedown');
           expect(widget.events).to.contain('mousedown');
           expect(widget.activeCellIndex).to.be(1);
         });
 
         it('should be a no-op if the model is read only', () => {
-          let child = widget.childAt(1);
+          let child = widget.widgets.at(1);
           widget.model.readOnly = true;
           simulate(child.node, 'mousedown');
           expect(widget.events).to.contain('mousedown');
@@ -913,9 +909,9 @@ describe('notebook/notebook/widget', () => {
 
         it('should preserve "command" mode if in a markdown cell', () => {
           let cell = widget.model.factory.createMarkdownCell();
-          widget.model.cells.add(cell);
-          let count = widget.childCount();
-          let child = widget.childAt(count - 1) as MarkdownCellWidget;
+          widget.model.cells.pushBack(cell);
+          let count = widget.widgets.length;
+          let child = widget.widgets.at(count - 1) as MarkdownCellWidget;
           expect(child.rendered).to.be(true);
           simulate(child.node, 'mousedown');
           expect(child.rendered).to.be(true);
@@ -928,8 +924,8 @@ describe('notebook/notebook/widget', () => {
 
         it('should unrender a markdown cell', () => {
           let cell = widget.model.factory.createMarkdownCell();
-          widget.model.cells.add(cell);
-          let child = widget.childAt(widget.childCount() - 1) as MarkdownCellWidget;
+          widget.model.cells.pushBack(cell);
+          let child = widget.widgets.at(widget.widgets.length - 1) as MarkdownCellWidget;
           expect(child.rendered).to.be(true);
           simulate(child.node, 'dblclick');
           expect(child.rendered).to.be(false);
@@ -937,9 +933,9 @@ describe('notebook/notebook/widget', () => {
 
         it('should be a no-op if the model is read only', () => {
           let cell = widget.model.factory.createMarkdownCell();
-          widget.model.cells.add(cell);
+          widget.model.cells.pushBack(cell);
           widget.model.readOnly = true;
-          let child = widget.childAt(widget.childCount() - 1) as MarkdownCellWidget;
+          let child = widget.widgets.at(widget.widgets.length - 1) as MarkdownCellWidget;
           expect(child.rendered).to.be(true);
           simulate(child.node, 'dblclick');
           expect(child.rendered).to.be(true);
@@ -950,20 +946,32 @@ describe('notebook/notebook/widget', () => {
       context('focus', () => {
 
         it('should change to edit mode if a child cell takes focus', () => {
-          let child = widget.childAt(0);
+          let child = widget.widgets.at(0);
           simulate(child.editor.node, 'focus');
           expect(widget.events).to.contain('focus');
           expect(widget.mode).to.be('edit');
         });
 
         it('should change to command mode if the widget takes focus', () => {
-          let child = widget.childAt(0);
+          let child = widget.widgets.at(0);
           simulate(child.editor.node, 'focus');
           expect(widget.events).to.contain('focus');
           expect(widget.mode).to.be('edit');
           widget.events = [];
           simulate(widget.node, 'focus');
           expect(widget.events).to.contain('focus');
+          expect(widget.mode).to.be('command');
+        });
+
+      });
+
+      context('blur', () => {
+
+        it('should set the mode to `command`', () => {
+          simulate(widget.node, 'focus');
+          widget.mode = 'edit';
+          let other = document.createElement('div');
+          simulate(widget.node, 'blur', { relatedTarget: other });
           expect(widget.mode).to.be('command');
         });
 
@@ -977,7 +985,7 @@ describe('notebook/notebook/widget', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
         Widget.attach(widget, document.body);
-        let child = widget.childAt(0);
+        let child = widget.widgets.at(0);
         requestAnimationFrame(() => {
           expect(widget.methods).to.contain('onAfterAttach');
           simulate(widget.node, 'mousedown');
@@ -1013,7 +1021,7 @@ describe('notebook/notebook/widget', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
         Widget.attach(widget, document.body);
-        let child = widget.childAt(0);
+        let child = widget.widgets.at(0);
         requestAnimationFrame(() => {
           Widget.detach(widget);
           expect(widget.methods).to.contain('onBeforeDetach');
@@ -1058,28 +1066,6 @@ describe('notebook/notebook/widget', () => {
 
     });
 
-    describe('#onDeactivateRequest()', () => {
-
-      it('should set the mode to `command`', () => {
-        let widget = createActiveWidget();
-        widget.mode = 'edit';
-        sendMessage(widget, WidgetMessage.DeactivateRequest);
-        expect(widget.methods).to.contain('onDeactivateRequest');
-        expect(widget.mode).to.be('command');
-      });
-
-      it('should post an `update-request`', (done) => {
-        let widget = createActiveWidget();
-        sendMessage(widget, WidgetMessage.DeactivateRequest);
-        requestAnimationFrame(() => {
-          expect(widget.methods).to.contain('onUpdateRequest');
-          widget.dispose();
-          done();
-        });
-      });
-
-    });
-
     describe('#onUpdateRequest()', () => {
 
       let widget: LogNotebook;
@@ -1109,15 +1095,15 @@ describe('notebook/notebook/widget', () => {
       });
 
       it('should add the active class to the active widget', () => {
-        let cell = widget.childAt(widget.activeCellIndex);
+        let cell = widget.widgets.at(widget.activeCellIndex);
         expect(cell.hasClass('jp-mod-active')).to.be(true);
       });
 
       it('should set the selected class on the selected widgets', (done) => {
-        widget.select(widget.childAt(1));
+        widget.select(widget.widgets.at(1));
         requestAnimationFrame(() => {
           for (let i = 0; i < 2; i++) {
-            let cell = widget.childAt(i);
+            let cell = widget.widgets.at(i);
             expect(cell.hasClass('jp-mod-selected')).to.be(true);
             done();
           }
@@ -1125,7 +1111,7 @@ describe('notebook/notebook/widget', () => {
       });
 
       it('should add the multi select class if there is more than one widget', (done) => {
-        widget.select(widget.childAt(1));
+        widget.select(widget.widgets.at(1));
         expect(widget.hasClass('jp-mod-multSelected')).to.be(false);
         requestAnimationFrame(() => {
           expect(widget.hasClass('jp-mod-multSelected')).to.be(false);
@@ -1150,7 +1136,7 @@ describe('notebook/notebook/widget', () => {
       it('should update the active cell if necessary', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
-        expect(widget.activeCell).to.be(widget.childAt(0));
+        expect(widget.activeCell).to.be(widget.widgets.at(0));
       });
 
       context('`edgeRequested` signal', () => {
@@ -1159,7 +1145,7 @@ describe('notebook/notebook/widget', () => {
           let widget = createActiveWidget();
           widget.model.fromJSON(DEFAULT_CONTENT);
           widget.activeCellIndex = 1;
-          let child = widget.childAt(widget.activeCellIndex);
+          let child = widget.widgets.at(widget.activeCellIndex);
           child.editor.edgeRequested.emit('top');
           expect(widget.activeCellIndex).to.be(0);
         });
@@ -1167,7 +1153,7 @@ describe('notebook/notebook/widget', () => {
         it('should activate the next cell if bottom is requested', ()  => {
           let widget = createActiveWidget();
           widget.model.fromJSON(DEFAULT_CONTENT);
-          let child = widget.childAt(widget.activeCellIndex);
+          let child = widget.widgets.at(widget.activeCellIndex);
           child.editor.edgeRequested.emit('bottom');
           expect(widget.activeCellIndex).to.be(1);
         });
@@ -1191,7 +1177,7 @@ describe('notebook/notebook/widget', () => {
 
       it('should post an `update-request', (done) => {
         let widget = createActiveWidget();
-        let cell = widget.model.cells.get(0);
+        let cell = widget.model.cells.at(0);
         widget.model.cells.remove(cell);
         expect(widget.methods).to.contain('onCellRemoved');
         requestAnimationFrame(() => {
@@ -1204,7 +1190,7 @@ describe('notebook/notebook/widget', () => {
         let widget = createActiveWidget();
         widget.model.fromJSON(DEFAULT_CONTENT);
         widget.model.cells.removeAt(0);
-        expect(widget.activeCell).to.be(widget.childAt(0));
+        expect(widget.activeCell).to.be(widget.widgets.at(0));
       });
 
     });

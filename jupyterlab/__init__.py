@@ -6,6 +6,7 @@
 import glob
 import json
 import os
+import sys
 from tornado import web
 from notebook.base.handlers import IPythonHandler, FileFindHandler
 from jinja2 import FileSystemLoader
@@ -63,14 +64,28 @@ class LabHandler(IPythonHandler):
     def get(self):
         static_prefix = ujoin(self.base_url, PREFIX)
         labextensions = self.application.labextensions
-
         data = get_labextension_manifest_data_by_folder(BUILT_FILES)
-        css_files = [ujoin(static_prefix, 'main.css'),
-                     ujoin(static_prefix, 'extensions.css')]
+        if 'main' not in data or 'extensions' not in data:
+            msg = ('JupyterLab build artifacts not detected, please see ' + 
+                   'CONTRIBUTING.md for build instructions.')
+            self.log.error(msg)
+            self.write(self.render_template('error.html', 
+                       status_code=500, 
+                       status_message='JupyterLab Error',
+                       page_title='JupyterLab Error',
+                       message=msg))
+            return
+
         main = data['main']['entry']
         bundles = [ujoin(static_prefix, name + '.bundle.js') for name in
                    ['loader', 'main', 'extensions']]
         entries = [data['extensions']['entry']]
+
+        # Only load CSS files if they exist.
+        css_files = []
+        for css_file in ['main.css', 'extensions.css']:
+            if os.path.isfile(os.path.join(BUILT_FILES, css_file)):
+                css_files.append(ujoin(static_prefix, css_file))
 
         # Gather the lab extension files and entry points.
         for name in labextensions:

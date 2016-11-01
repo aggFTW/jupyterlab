@@ -2,6 +2,10 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
+  nbformat
+} from '@jupyterlab/services';
+
+import {
   CodeCellModel, RawCellModel
 } from '../../notebook/cells/model';
 
@@ -16,6 +20,10 @@ import {
 import {
   CodeMirrorNotebookRenderer
 } from '../../notebook/codemirror/notebook/widget';
+
+import {
+  mimetypeForLanguage
+} from '../../notebook/common/mimetype';
 
 import {
   RenderMime
@@ -45,7 +53,7 @@ class CodeMirrorConsoleRenderer implements ConsoleContent.IRenderer {
   /**
    * Create a new prompt widget.
    */
-  createPrompt(rendermime: RenderMime): CodeCellWidget {
+  createPrompt(rendermime: RenderMime, context: ConsoleContent): CodeCellWidget {
     let widget = new CodeCellWidget({
       rendermime,
       renderer: CodeMirrorConsoleRenderer.defaultCodeCellRenderer
@@ -57,13 +65,20 @@ class CodeMirrorConsoleRenderer implements ConsoleContent.IRenderer {
   /**
    * Create a new code cell widget for an input from a foreign session.
    */
-  createForeignCell(rendermime: RenderMime): CodeCellWidget {
+  createForeignCell(rendermime: RenderMime, context: ConsoleContent): CodeCellWidget {
     let widget = new CodeCellWidget({
       rendermime,
       renderer: CodeMirrorConsoleRenderer.defaultCodeCellRenderer
     });
     widget.model = new CodeCellModel();
     return widget;
+  }
+
+  /**
+   * Get the preferred mimetype given language info.
+   */
+  getCodeMimetype(info: nbformat.ILanguageInfoMetadata): string {
+    return mimetypeForLanguage(info);
   }
 }
 

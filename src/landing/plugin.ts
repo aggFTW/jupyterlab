@@ -113,7 +113,7 @@ function activateLanding(app: JupyterLab, services: IServiceManager, pathTracker
 
 
   let folderImage = document.createElement('span');
-  folderImage.className = 'jp-Landing-folder';
+  folderImage.className = 'jp-Landing-folder jp-FolderIcon';
 
 
   let path = document.createElement('span');
@@ -134,8 +134,8 @@ function activateLanding(app: JupyterLab, services: IServiceManager, pathTracker
   cwd.appendChild(path);
   dialog.appendChild(cwd);
 
-  app.commands.addCommand('jupyterlab-launcher:show', {
-    label: 'Show Launcher',
+  app.commands.addCommand('jupyterlab-landing:show', {
+    label: 'Show Landing',
     execute: () => {
       if (!widget.isAttached) {
         app.shell.addToMainArea(widget);
@@ -146,7 +146,7 @@ function activateLanding(app: JupyterLab, services: IServiceManager, pathTracker
   });
 
   palette.addItem({
-    command: 'jupyterlab-launcher:show',
+    command: 'jupyterlab-landing:show',
     category: 'Help'
   });
 

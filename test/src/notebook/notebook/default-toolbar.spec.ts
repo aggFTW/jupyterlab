@@ -4,8 +4,12 @@
 import expect = require('expect.js');
 
 import {
-  utils, Session
-} from 'jupyter-js-services';
+  Session, utils
+} from '@jupyterlab/services';
+
+import {
+  toArray
+} from 'phosphor/lib/algorithm/iteration';
 
 import {
   MimeData
@@ -16,19 +20,20 @@ import {
 } from 'phosphor/lib/ui/widget';
 
 import {
+  Context
+} from '../../../../lib/docregistry/context';
+
+import {
  CodeCellWidget, MarkdownCellWidget
 } from '../../../../lib/notebook/cells/widget';
 
 import {
-  JUPYTER_CELL_MIME, NotebookActions
+  NotebookActions
 } from '../../../../lib/notebook/notebook/actions';
 
 import {
- createInterruptButton,
- createKernelNameItem,
- createKernelStatusItem,
- createRestartButton
-} from '../../../../lib/toolbar/kernel';
+  CodeMirrorNotebookPanelRenderer
+} from '../../../../lib/notebook/codemirror/notebook/panel';
 
 import {
  ToolbarItems
@@ -39,12 +44,19 @@ import {
 } from '../../../../lib/notebook/notebook/model';
 
 import {
+  JUPYTER_CELL_MIME
+} from '../../../../lib/notebook/notebook/widget';
+
+import {
  NotebookPanel
 } from '../../../../lib/notebook/notebook/panel';
 
 import {
-  Context
-} from '../../../../lib/docmanager/context';
+ createInterruptButton,
+ createKernelNameItem,
+ createKernelStatusItem,
+ createRestartButton
+} from '../../../../lib/toolbar/kernel';
 
 import {
   createNotebookContext, defaultRenderMime
@@ -53,10 +65,6 @@ import {
 import {
   DEFAULT_CONTENT
 } from '../utils';
-
-import {
-  CodeMirrorNotebookPanelRenderer
-} from '../../../../lib/notebook/codemirror/notebook/panel';
 
 
 /**
@@ -110,7 +118,7 @@ describe('notebook/notebook/default-toolbar', () => {
       it('should save when clicked', (done) => {
         let button = ToolbarItems.createSaveButton(panel);
         Widget.attach(button, document.body);
-        context.contentsModelChanged.connect(() => {
+        context.fileChanged.connect(() => {
           button.dispose();
           done();
         });
@@ -146,10 +154,10 @@ describe('notebook/notebook/default-toolbar', () => {
 
       it('should cut when clicked', () => {
         let button = ToolbarItems.createCutButton(panel);
-        let count = panel.content.childCount();
+        let count = panel.content.widgets.length;
         Widget.attach(button, document.body);
         button.node.click();
-        expect(panel.content.childCount()).to.be(count - 1);
+        expect(panel.content.widgets.length).to.be(count - 1);
         expect(clipboard.hasData(JUPYTER_CELL_MIME)).to.be(true);
         button.dispose();
       });
@@ -165,10 +173,10 @@ describe('notebook/notebook/default-toolbar', () => {
 
       it('should copy when clicked', () => {
         let button = ToolbarItems.createCopyButton(panel);
-        let count = panel.content.childCount();
+        let count = panel.content.widgets.length;
         Widget.attach(button, document.body);
         button.node.click();
-        expect(panel.content.childCount()).to.be(count);
+        expect(panel.content.widgets.length).to.be(count);
         expect(clipboard.hasData(JUPYTER_CELL_MIME)).to.be(true);
         button.dispose();
       });
@@ -184,12 +192,12 @@ describe('notebook/notebook/default-toolbar', () => {
 
       it('should paste when clicked', (done) => {
         let button = ToolbarItems.createPasteButton(panel);
-        let count = panel.content.childCount();
+        let count = panel.content.widgets.length;
         Widget.attach(button, document.body);
         NotebookActions.copy(panel.content, clipboard);
         button.node.click();
         requestAnimationFrame(() => {
-          expect(panel.content.childCount()).to.be(count + 1);
+          expect(panel.content.widgets.length).to.be(count + 1);
           button.dispose();
           done();
         });
@@ -207,7 +215,7 @@ describe('notebook/notebook/default-toolbar', () => {
       it('should run and advance when clicked', (done) => {
         let button = ToolbarItems.createRunButton(panel);
         let widget = panel.content;
-        let next = widget.childAt(1) as MarkdownCellWidget;
+        let next = widget.widgets.at(1) as MarkdownCellWidget;
         widget.select(next);
         let cell = widget.activeCell as CodeCellWidget;
         cell.model.outputs.clear();
@@ -279,7 +287,7 @@ describe('notebook/notebook/default-toolbar', () => {
         let item = ToolbarItems.createCellTypeItem(panel);
         let node = item.node.getElementsByTagName('select')[0] as HTMLSelectElement;
         expect(node.value).to.be('code');
-        panel.content.select(panel.content.childAt(1));
+        panel.content.select(panel.content.widgets.at(1));
         expect(node.value).to.be('-');
       });
 
@@ -289,7 +297,7 @@ describe('notebook/notebook/default-toolbar', () => {
         expect(node.value).to.be('code');
         let cell = panel.model.factory.createCodeCell();
         panel.model.cells.insert(1, cell);
-        panel.content.select(panel.content.childAt(1));
+        panel.content.select(panel.content.widgets.at(1));
         expect(node.value).to.be('code');
       });
 
@@ -320,17 +328,6 @@ describe('notebook/notebook/default-toolbar', () => {
         panel.context = null;
         let item = createKernelNameItem(panel);
         expect(item.node.textContent).to.be('No Kernel!');
-      });
-
-      it('should handle a change in kernel', (done) => {
-        let item = createKernelNameItem(panel);
-        let name = context.kernelspecs.default;
-        panel.context.changeKernel({ name }).then(kernel => {
-          return kernel.getSpec().then(spec => {
-            expect(item.node.textContent).to.be(spec.display_name);
-            done();
-          });
-        }).catch(done);
       });
 
       it('should handle a change in context', (done) => {
@@ -447,7 +444,7 @@ describe('notebook/notebook/default-toolbar', () => {
 
       it('should add the default items to the panel toolbar', () => {
         ToolbarItems.populateDefaults(panel);
-        expect(panel.toolbar.list()).to.eql(['save', 'insert', 'cut',
+        expect(toArray(panel.toolbar.names())).to.eql(['save', 'insert', 'cut',
           'copy', 'paste', 'run', 'interrupt', 'restart', 'cellType',
           'kernelName', 'kernelStatus']);
       });

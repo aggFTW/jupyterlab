@@ -2,15 +2,15 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IKernel, Kernel
-} from 'jupyter-js-services';
+  Kernel
+} from '@jupyterlab/services';
 
 import {
   MimeData as IClipboard
 } from 'phosphor/lib/core/mimedata';
 
 import {
-  ABCWidgetFactory, IDocumentContext
+  ABCWidgetFactory, DocumentRegistry
 } from '../../docregistry';
 
 import {
@@ -38,17 +38,13 @@ class NotebookWidgetFactory extends ABCWidgetFactory<NotebookPanel, INotebookMod
   /**
    * Construct a new notebook widget factory.
    *
-   * @param rendermime - The rendermime instance.
-   *
-   * @param clipboard - The application clipboard.
-   *
-   * @param renderer - The notebook panel renderer.
+   * @param options - The options used to construct the factory.
    */
-  constructor(rendermime: RenderMime, clipboard: IClipboard, renderer: NotebookPanel.IRenderer) {
-    super();
-    this._rendermime = rendermime;
-    this._clipboard = clipboard;
-    this._renderer = renderer;
+  constructor(options: NotebookWidgetFactory.IOptions) {
+    super(options);
+    this._rendermime = options.rendermime;
+    this._clipboard = options.clipboard;
+    this._renderer = options.renderer;
   }
 
   /**
@@ -70,13 +66,8 @@ class NotebookWidgetFactory extends ABCWidgetFactory<NotebookPanel, INotebookMod
    * The factory will start the appropriate kernel and populate
    * the default toolbar items using `ToolbarItems.populateDefaults`.
    */
-  createNew(context: IDocumentContext<INotebookModel>, kernel?: Kernel.IModel): NotebookPanel {
+  protected createNewWidget(context: DocumentRegistry.IContext<INotebookModel>): NotebookPanel {
     let rendermime = this._rendermime.clone();
-    if (kernel) {
-      context.changeKernel(kernel);
-    } else if (!context.kernel) {
-      context.changeKernel({ name: context.kernelspecs.default });
-    }
     let panel = new NotebookPanel({
       rendermime,
       clipboard: this._clipboard,
@@ -84,11 +75,38 @@ class NotebookWidgetFactory extends ABCWidgetFactory<NotebookPanel, INotebookMod
     });
     panel.context = context;
     ToolbarItems.populateDefaults(panel);
-    this.widgetCreated.emit(panel);
     return panel;
   }
 
   private _rendermime: RenderMime = null;
   private _clipboard: IClipboard = null;
   private _renderer: NotebookPanel.IRenderer = null;
+}
+
+
+/**
+ * The namespace for `NotebookWidgetFactory` statics.
+ */
+export
+namespace NotebookWidgetFactory {
+  /**
+   * The options used to construct a `NotebookWidgetFactory`.
+   */
+  export
+  interface IOptions extends DocumentRegistry.IWidgetFactoryOptions {
+     /*
+      * A rendermime instance.
+      */
+    rendermime: RenderMime;
+
+    /**
+     * A clipboard instance.
+     */
+    clipboard: IClipboard;
+
+    /**
+     * A notebook panel renderer.
+     */
+    renderer: NotebookPanel.IRenderer;
+  }
 }

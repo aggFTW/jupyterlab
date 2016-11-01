@@ -2,23 +2,31 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  utils
-} from 'jupyter-js-services';
+  nbformat, utils
+} from '@jupyterlab/services';
 
 import {
-  deepEqual
+  each
+} from 'phosphor/lib/algorithm/iteration';
+
+import {
+  deepEqual, JSONValue
 } from 'phosphor/lib/algorithm/json';
+
+import {
+  IIterator, iter
+} from 'phosphor/lib/algorithm/iteration';
 
 import {
   clearSignalData, defineSignal, ISignal
 } from 'phosphor/lib/core/signaling';
 
 import {
-  IObservableList, IListChangedArgs
-} from '../../common/observablelist';
+  IObservableVector, ObservableVector
+} from '../../common/observablevector';
 
 import {
-  DocumentModel, IDocumentModel
+  DocumentModel, DocumentRegistry
 } from '../../docregistry';
 
 import {
@@ -35,55 +43,39 @@ import {
 } from '../common/metadata';
 
 import {
-  ObservableUndoableList
+  IObservableUndoableVector, ObservableUndoableVector
 } from '../common/undo';
-
-import {
-  nbformat
-} from './nbformat';
 
 
 /**
  * The definition of a model object for a notebook widget.
  */
 export
-interface INotebookModel extends IDocumentModel {
+interface INotebookModel extends DocumentRegistry.IModel {
   /**
    * A signal emitted when a metadata field changes.
    */
-  metadataChanged: ISignal<IDocumentModel, IChangedArgs<any>>;
+  metadataChanged: ISignal<DocumentRegistry.IModel, IChangedArgs<JSONValue>>;
 
   /**
    * The list of cells in the notebook.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
-  cells: ObservableUndoableList<ICellModel>;
+  readonly cells: IObservableUndoableVector<ICellModel>;
 
   /**
    * The cell model factory for the notebook.
-   *
-   * #### Notes
-   * This is a read-only propery.
    */
-  factory: ICellModelFactory;
+  readonly factory: ICellModelFactory;
 
   /**
    * The major version number of the nbformat.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
-  nbformat: number;
+  readonly nbformat: number;
 
   /**
    * The minor version number of the nbformat.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
-  nbformatMinor: number;
+  readonly nbformatMinor: number;
 
   /**
    * Get a metadata cursor for the notebook.
@@ -97,7 +89,7 @@ interface INotebookModel extends IDocumentModel {
   /**
    * List the metadata namespace keys for the notebook.
    */
-  listMetadata(): string[];
+  listMetadata(): IIterator<string>;
 }
 
 
@@ -149,7 +141,7 @@ class NotebookModel extends DocumentModel implements INotebookModel {
   constructor(options: NotebookModel.IOptions = {}) {
     super(options.languagePreference);
     this._factory = options.factory || NotebookModel.defaultFactory;
-    this._cells = new ObservableUndoableList<ICellModel>((data: nbformat.IBaseCell) => {
+    this._cells = new ObservableUndoableVector<ICellModel>((data: nbformat.IBaseCell) => {
       switch (data.cell_type) {
         case 'code':
           return this._factory.createCodeCell(data);
@@ -160,7 +152,7 @@ class NotebookModel extends DocumentModel implements INotebookModel {
       }
     });
     // Add an initial code cell by default.
-    this._cells.add(this._factory.createCodeCell());
+    this._cells.pushBack(this._factory.createCodeCell());
     this._cells.changed.connect(this._onCellsChanged, this);
     if (options.languagePreference) {
       this._metadata['language_info'] = { name: options.languagePreference };
@@ -170,23 +162,17 @@ class NotebookModel extends DocumentModel implements INotebookModel {
   /**
    * A signal emitted when a metadata field changes.
    */
-  metadataChanged: ISignal<IDocumentModel, IChangedArgs<any>>;
+  metadataChanged: ISignal<this, IChangedArgs<JSONValue>>;
 
   /**
    * Get the observable list of notebook cells.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
-  get cells(): ObservableUndoableList<ICellModel> {
+  get cells(): IObservableUndoableVector<ICellModel> {
     return this._cells;
   }
 
   /**
    * The cell model factory for the notebook.
-   *
-   * #### Notes
-   * This is a read-only propery.
    */
   get factory(): ICellModelFactory {
     return this._factory;
@@ -194,9 +180,6 @@ class NotebookModel extends DocumentModel implements INotebookModel {
 
   /**
    * The major version number of the nbformat.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get nbformat(): number {
     return this._nbformat;
@@ -204,9 +187,6 @@ class NotebookModel extends DocumentModel implements INotebookModel {
 
   /**
    * The minor version number of the nbformat.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get nbformatMinor(): number {
     return this._nbformatMinor;
@@ -214,9 +194,6 @@ class NotebookModel extends DocumentModel implements INotebookModel {
 
   /**
    * The default kernel name of the document.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get defaultKernelName(): string {
     let spec = this._metadata['kernelspec'];
@@ -225,9 +202,6 @@ class NotebookModel extends DocumentModel implements INotebookModel {
 
   /**
    * The default kernel language of the document.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get defaultKernelLanguage(): string {
     let info = this._metadata['language_info'];
@@ -246,7 +220,7 @@ class NotebookModel extends DocumentModel implements INotebookModel {
     cells.dispose();
     clearSignalData(this);
     for (let i = 0; i < cells.length; i++) {
-      let cell = cells.get(i);
+      let cell = cells.at(i);
       cell.dispose();
     }
     cells.clear();
@@ -282,7 +256,7 @@ class NotebookModel extends DocumentModel implements INotebookModel {
   toJSON(): nbformat.INotebookContent {
     let cells: nbformat.ICell[] = [];
     for (let i = 0; i < this.cells.length; i++) {
-      let cell = this.cells.get(i);
+      let cell = this.cells.at(i);
       cells.push(cell.toJSON());
     }
     let metadata = utils.copy(this._metadata) as nbformat.INotebookMetadata;
@@ -317,7 +291,11 @@ class NotebookModel extends DocumentModel implements INotebookModel {
         continue;
       }
     }
-    this.cells.assign(cells);
+    this.cells.beginCompoundOperation();
+    this.cells.clear();
+    this.cells.pushAll(cells);
+    this.cells.endCompoundOperation();
+
     let oldValue = 0;
     let newValue = 0;
     if (value.nbformat !== this._nbformat) {
@@ -380,8 +358,8 @@ class NotebookModel extends DocumentModel implements INotebookModel {
   /**
    * List the metadata namespace keys for the notebook.
    */
-  listMetadata(): string[] {
-    return Object.keys(this._metadata);
+  listMetadata(): IIterator<string> {
+    return iter(Object.keys(this._metadata));
   }
 
   /**
@@ -401,32 +379,25 @@ class NotebookModel extends DocumentModel implements INotebookModel {
   /**
    * Handle a change in the cells list.
    */
-  private _onCellsChanged(list: IObservableList<ICellModel>, change: IListChangedArgs<ICellModel>): void {
-    let cell: ICellModel;
+  private _onCellsChanged(list: IObservableVector<ICellModel>, change: ObservableVector.IChangedArgs<ICellModel>): void {
     switch (change.type) {
     case 'add':
-      cell = change.newValue as ICellModel;
-      cell.contentChanged.connect(this._onCellChanged, this);
+      each(change.newValues, cell => {
+        cell.contentChanged.connect(this._onCellChanged, this);
+      });
       break;
     case 'remove':
-      (change.oldValue as ICellModel).dispose();
-      break;
-    case 'replace':
-      let newValues = change.newValue as ICellModel[];
-      for (cell of newValues) {
-        cell.contentChanged.connect(this._onCellChanged, this);
-      }
-      let oldValues = change.oldValue as ICellModel[];
-      for (cell of oldValues) {
+      each(change.oldValues, cell => {
         cell.dispose();
-      }
+      });
       break;
     case 'set':
-      cell = change.newValue as ICellModel;
-      cell.contentChanged.connect(this._onCellChanged, this);
-      if (change.oldValue) {
-        (change.oldValue as ICellModel).dispose();
-      }
+      each(change.newValues, cell => {
+        cell.contentChanged.connect(this._onCellChanged, this);
+      });
+      each(change.oldValues, cell => {
+        cell.dispose();
+      });
       break;
     default:
       return;
@@ -436,8 +407,8 @@ class NotebookModel extends DocumentModel implements INotebookModel {
       // Add the cell in a new context to avoid triggering another
       // cell changed event during the handling of this signal.
       requestAnimationFrame(() => {
-        if (!this._cells.length) {
-          this._cells.add(this._factory.createCodeCell());
+        if (!this.isDisposed && !this._cells.length) {
+          this._cells.pushBack(this._factory.createCodeCell());
         }
       });
     }
@@ -453,7 +424,7 @@ class NotebookModel extends DocumentModel implements INotebookModel {
     this.contentChanged.emit(void 0);
   }
 
-  private _cells: ObservableUndoableList<ICellModel> = null;
+  private _cells: IObservableUndoableVector<ICellModel> = null;
   private _factory: ICellModelFactory = null;
   private _metadata: { [key: string]: any } = Private.createMetadata();
   private _cursors: { [key: string]: MetadataCursor } = Object.create(null);

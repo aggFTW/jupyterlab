@@ -20,12 +20,8 @@ import {
 } from '../../../lib/markdownwidget/widget';
 
 import {
-  IDocumentModel
+  DocumentRegistry, Context
 } from '../../../lib/docregistry';
-
-import {
-  Context
-} from '../../../lib/docmanager/context';
 
 import {
   createFileContext, defaultRenderMime
@@ -54,7 +50,7 @@ const contextPromise = createFileContext();
 
 describe('markdownwidget/widget', () => {
 
-  let context: Context<IDocumentModel>;
+  let context: Context<DocumentRegistry.IModel>;
 
   beforeEach((done) => {
     contextPromise.then(c => {
@@ -68,7 +64,11 @@ describe('markdownwidget/widget', () => {
     describe('#createNew()', () => {
 
       it('should require a context parameter', () => {
-        let widgetFactory = new MarkdownWidgetFactory(RENDERMIME);
+        let widgetFactory = new MarkdownWidgetFactory({
+          name: 'markdown',
+          fileExtensions: ['.md'],
+          rendermime: RENDERMIME
+        });
         expect(widgetFactory.createNew(context)).to.be.a(MarkdownWidget);
       });
 

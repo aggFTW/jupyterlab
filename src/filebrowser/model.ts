@@ -2,12 +2,12 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  Contents, ContentsManager, Kernel, IServiceManager, Session
-} from 'jupyter-js-services';
+  Contents, ContentsManager, Kernel, ServiceManager, Session
+} from '@jupyterlab/services';
 
 import {
-  ISequence
-} from 'phosphor/lib/algorithm/sequence';
+  IIterator, each
+} from 'phosphor/lib/algorithm/iteration';
 
 import {
   Vector
@@ -25,6 +25,10 @@ import {
   IChangedArgs
 } from '../common/interfaces';
 
+import {
+  IPathTracker
+} from './tracker';
+
 
 /**
  * An implementation of a file browser model.
@@ -34,7 +38,7 @@ import {
  * the current directory.  Supports `'../'` syntax.
  */
 export
-class FileBrowserModel implements IDisposable {
+class FileBrowserModel implements IDisposable, IPathTracker {
   /**
    * Construct a new file browser model.
    */
@@ -48,17 +52,17 @@ class FileBrowserModel implements IDisposable {
   /**
    * A signal emitted when the path changes.
    */
-  pathChanged: ISignal<FileBrowserModel, IChangedArgs<string>>;
+  pathChanged: ISignal<this, IChangedArgs<string>>;
 
   /**
    * Get the refreshed signal.
    */
-  refreshed: ISignal<FileBrowserModel, void>;
+  refreshed: ISignal<this, void>;
 
   /**
    * Get the file path changed signal.
    */
-  fileChanged: ISignal<FileBrowserModel, IChangedArgs<Contents.IModel>>;
+  fileChanged: ISignal<this, IChangedArgs<Contents.IModel>>;
 
   /**
    * Get the current path.
@@ -68,24 +72,10 @@ class FileBrowserModel implements IDisposable {
   }
 
   /**
-   * Get a read-only list of the items in the current path.
-   */
-  get items(): ISequence<Contents.IModel> {
-    return this._items;
-  }
-
-  /**
    * Get whether the model is disposed.
    */
   get isDisposed(): boolean {
     return this._model === null;
-  }
-
-  /**
-   * Get the session models for active notebooks in the current directory.
-   */
-  get sessions(): ISequence<Session.IModel> {
-    return this._sessions;
   }
 
   /**
@@ -107,6 +97,24 @@ class FileBrowserModel implements IDisposable {
     this._items.clear();
     this._manager = null;
     clearSignalData(this);
+  }
+
+  /**
+   * Create an iterator over the model's items.
+   *
+   * @returns A new iterator over the model's items.
+   */
+  items(): IIterator<Contents.IModel> {
+    return this._items.iter();
+  }
+
+  /**
+   * Create an iterator over the active sessions in the directory.
+   *
+   * @returns A new iterator over the model's active sessions.
+   */
+  sessions(): IIterator<Session.IModel> {
+    return this._sessions.iter();
   }
 
   /**
@@ -157,6 +165,8 @@ class FileBrowserModel implements IDisposable {
 
   /**
    * Refresh the current directory.
+   *
+   * @returns A promise that resolves when the action is complete.
    */
   refresh(): Promise<void> {
     return this.cd('.').catch(error => {
@@ -313,6 +323,10 @@ class FileBrowserModel implements IDisposable {
 
   /**
    * Shut down a session by session id.
+   *
+   * @param id - The id of the session.
+   *
+   * @returns A promise that resolves when the action is complete.
    */
   shutdown(id: string): Promise<void> {
     return this._manager.sessions.shutdown(id);
@@ -370,13 +384,22 @@ class FileBrowserModel implements IDisposable {
    */
   private _handleContents(contents: Contents.IModel): void {
     // Update our internal data.
-    this._model = contents;
+    this._model = {
+      name: contents.name,
+      path: contents.path,
+      type: contents.type,
+      writable: contents.writable,
+      created: contents.created,
+      last_modified: contents.last_modified,
+      mimetype: contents.mimetype,
+      format: contents.format
+    };
     this._items.clear();
-    this._paths = contents.content.map((model: Contents.IModel) => {
-      return model.path;
+    this._paths.clear();
+    each(contents.content, (model: Contents.IModel) => {
+      this._paths.add(model.path);
     });
     this._items = new Vector<Contents.IModel>(contents.content);
-    this._model.content = null;
   }
 
   /**
@@ -384,20 +407,19 @@ class FileBrowserModel implements IDisposable {
    */
   private _onRunningChanged(sender: Session.IManager, models: Session.IModel[]): void {
     this._sessions.clear();
-    for (let model of models) {
-      let index = this._paths.indexOf(model.notebook.path);
-      if (index !== -1) {
+    each(models, model => {
+      if (this._paths.has(model.notebook.path)) {
         this._sessions.pushBack(model);
       }
-    }
+    });
     this.refreshed.emit(void 0);
   }
 
   private _maxUploadSizeMb = 15;
-  private _manager: IServiceManager = null;
+  private _manager: ServiceManager.IManager = null;
   private _sessions = new Vector<Session.IModel>();
   private _items = new Vector<Contents.IModel>();
-  private _paths: string[] = [];
+  private _paths = new Set<string>();
   private _model: Contents.IModel;
   private _pendingPath: string = null;
   private _pending: Promise<void> = null;
@@ -422,7 +444,7 @@ namespace FileBrowserModel {
     /**
      * A service manager instance.
      */
-    manager: IServiceManager;
+    manager: ServiceManager.IManager;
   }
 }
 

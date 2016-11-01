@@ -2,8 +2,8 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  ITerminalSession, TerminalSession
-} from 'jupyter-js-services';
+  TerminalSession
+} from '@jupyterlab/services';
 
 import {
   Message, sendMessage
@@ -19,7 +19,6 @@ import {
 
 import * as Xterm
   from 'xterm';
-
 
 /**
  * The class name added to a terminal widget.
@@ -69,16 +68,15 @@ class TerminalWidget extends Widget {
     this.color = options.color || 'white';
     this.id = `jp-TerminalWidget-${Private.id++}`;
     this.title.label = 'Terminal';
-    (Xterm as any).brokenBold = true;
   }
 
   /**
    * The terminal session associated with the widget.
    */
-  get session(): ITerminalSession {
+  get session(): TerminalSession.ISession {
     return this._session;
   }
-  set session(value: ITerminalSession) {
+  set session(value: TerminalSession.ISession) {
     if (this._session && !this._session.isDisposed) {
       this._session.messageReceived.disconnect(this._onMessage, this);
     }
@@ -132,48 +130,6 @@ class TerminalWidget extends Widget {
   set color(value: string) {
     this._color = value;
     this.update();
-  }
-
-  /**
-   * Get whether the bell is shown.
-   */
-  get visualBell(): boolean {
-    return this._term.visualBell;
-  }
-
-  /**
-   * Set whether the bell is shown.
-   */
-  set visualBell(value: boolean) {
-    this._term.visualBell = value;
-  }
-
-  /**
-   * Get whether to focus on a bell event.
-   */
-  get popOnBell(): boolean {
-    return this._term.popOnBell;
-  }
-
-  /**
-   * Set whether to focus on a bell event.
-   */
-  set popOnBell(value: boolean) {
-    this._term.popOnBell = value;
-  }
-
-  /**
-   * Get the size of the scrollback buffer in the terminal.
-   */
-  get scrollback(): number {
-    return this._term.scrollback;
-  }
-
-  /**
-   * Set the size of the scrollback buffer in the terminal.
-   */
-  set scrollback(value: number) {
-    this._term.scrollback = value;
   }
 
   /**
@@ -313,7 +269,7 @@ class TerminalWidget extends Widget {
   /**
    * Handle a message from the terminal session.
    */
-  private _onMessage(sender: ITerminalSession, msg: TerminalSession.IMessage): void {
+  private _onMessage(sender: TerminalSession.ISession, msg: TerminalSession.IMessage): void {
     switch (msg.type) {
     case 'stdout':
       this._term.write(msg.content[0] as string);
@@ -382,7 +338,7 @@ class TerminalWidget extends Widget {
   private _background = '';
   private _color = '';
   private _box: IBoxSizing = null;
-  private _session: ITerminalSession = null;
+  private _session: TerminalSession.ISession = null;
 }
 
 
@@ -448,15 +404,6 @@ namespace Private {
       config.cursorBlink = options.cursorBlink;
     } else {
       config.cursorBlink = true;
-    }
-    if (options.visualBell !== void 0) {
-      config.visualBell = options.visualBell;
-    }
-    if (options.popOnBell !== void 0) {
-      config.popOnBell = options.popOnBell;
-    }
-    if (options.scrollback !== void 0) {
-      config.scrollback = options.scrollback;
     }
     return config;
   }

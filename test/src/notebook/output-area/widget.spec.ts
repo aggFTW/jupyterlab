@@ -4,16 +4,16 @@
 import expect = require('expect.js');
 
 import {
+  nbformat
+} from '@jupyterlab/services';
+
+import {
   Message
 } from 'phosphor/lib/core/messaging';
 
 import {
   ChildMessage, Widget
 } from 'phosphor/lib/ui/widget';
-
-import {
-  nbformat
-} from '../../../../lib/notebook/notebook/nbformat';
 
 import {
   OutputAreaModel, OutputAreaWidget, OutputWidget
@@ -70,11 +70,11 @@ class CustomOutputWidget extends OutputWidget {
     super.setOutput(value);
   }
 
-  getBundle(output: nbformat.IOutput): nbformat.MimeBundle {
+  getBundle(output: nbformat.IOutput): nbformat.IMimeBundle {
     return super.getBundle(output);
   }
 
-  convertBundle(bundle: nbformat.MimeBundle): RenderMime.MimeMap<string> {
+  convertBundle(bundle: nbformat.IMimeBundle): RenderMime.MimeMap<string> {
     return super.convertBundle(bundle);
   }
 }
@@ -165,14 +165,14 @@ describe('notebook/output-area/widget', () => {
 
       it('should create widgets for the model items', () => {
         let widget = createWidget();
-        expect(widget.childCount()).to.be(5);
+        expect(widget.widgets.length).to.be(5);
       });
 
       context('model `changed` signal', () => {
 
         it('should dispose of the child widget when an output is removed', () => {
           let widget = createWidget();
-          let child = widget.childAt(0);
+          let child = widget.widgets.at(0);
           widget.model.clear();
           expect(child.isDisposed).to.be(true);
         });
@@ -282,22 +282,18 @@ describe('notebook/output-area/widget', () => {
 
     });
 
-    describe('#childAt()', () => {
+    describe('#widgets', () => {
 
       it('should get the child widget at the specified index', () => {
         let widget = createWidget();
-        expect(widget.childAt(0)).to.be.a(Widget);
+        expect(widget.widgets.at(0)).to.be.a(Widget);
       });
-
-    });
-
-    describe('#childCount()', () => {
 
       it('should get the number of child widgets', () => {
         let widget = createWidget();
-        expect(widget.childCount()).to.be(5);
+        expect(widget.widgets.length).to.be(5);
         widget.model.clear();
-        expect(widget.childCount()).to.be(0);
+        expect(widget.widgets.length).to.be(0);
       });
 
     });
@@ -460,7 +456,7 @@ describe('notebook/output-area/widget', () => {
     describe('#convertBundle()', () => {
 
       it('should handle bundles with strings', () => {
-        let bundle: nbformat.MimeBundle = {
+        let bundle: nbformat.IMimeBundle = {
           'text/plain': 'foo'
         };
         let widget = new CustomOutputWidget({ rendermime });
@@ -469,7 +465,7 @@ describe('notebook/output-area/widget', () => {
       });
 
       it('should handle bundles with string arrays', () => {
-        let bundle: nbformat.MimeBundle = {
+        let bundle: nbformat.IMimeBundle = {
           'text/plain': ['foo', 'bar']
         };
         let widget = new CustomOutputWidget({ rendermime });

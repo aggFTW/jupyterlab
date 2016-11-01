@@ -2,12 +2,20 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IKernel
-} from 'jupyter-js-services';
+  Kernel, nbformat
+} from '@jupyterlab/services';
+
+import {
+  each
+} from 'phosphor/lib/algorithm/iteration';
 
 import {
   JSONObject
 } from 'phosphor/lib/algorithm/json';
+
+import {
+  ISequence
+} from 'phosphor/lib/algorithm/sequence';
 
 import {
   Message
@@ -34,16 +42,12 @@ import {
 } from 'phosphor/lib/ui/widget';
 
 import {
-  IListChangedArgs
-} from '../../common/observablelist';
+  ObservableVector
+} from '../../common/observablevector';
 
 import {
   RenderMime
 } from '../../rendermime';
-
-import {
-  nbformat
-} from '../notebook/nbformat';
 
 import {
   OutputAreaModel
@@ -181,12 +185,19 @@ class OutputAreaWidget extends Widget {
   /**
    * A signal emitted when the widget's model changes.
    */
-  modelChanged: ISignal<OutputAreaWidget, void>;
+  modelChanged: ISignal<this, void>;
 
   /**
    * A signal emitted when the widget's model is disposed.
    */
-  modelDisposed: ISignal<OutputAreaWidget, void>;
+  modelDisposed: ISignal<this, void>;
+
+  /**
+   * A read-only sequence of the widgets in the output area.
+   */
+  get widgets(): ISequence<OutputWidget> {
+    return (this.layout as PanelLayout).widgets as ISequence<OutputWidget>;
+  }
 
   /**
    * The model for the widget.
@@ -208,9 +219,6 @@ class OutputAreaWidget extends Widget {
 
   /**
    * Get the rendermime instance used by the widget.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get rendermime(): RenderMime {
     return this._rendermime;
@@ -218,9 +226,6 @@ class OutputAreaWidget extends Widget {
 
   /**
    * Get the renderer used by the widget.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get renderer(): OutputAreaWidget.IRenderer {
     return this._renderer;
@@ -287,23 +292,7 @@ class OutputAreaWidget extends Widget {
   }
 
   /**
-   * Get the child widget at the specified index.
-   */
-  childAt(index: number): OutputWidget {
-    let layout = this.layout as PanelLayout;
-    return layout.widgets.at(index) as OutputWidget;
-  }
-
-  /**
-   * Get the number of child widgets.
-   */
-  childCount(): number {
-    let layout = this.layout as PanelLayout;
-    return layout.widgets.length;
-  }
-
-  /**
-   * Handle `update_request` messages.
+   * Handle `update-request` messages.
    */
   protected onUpdateRequest(msg: Message): void {
     if (this.collapsed) {
@@ -361,13 +350,13 @@ class OutputAreaWidget extends Widget {
   /**
    * Follow changes on the model state.
    */
-  protected onModelStateChanged(sender: OutputAreaModel, args: IListChangedArgs<nbformat.IOutput>) {
+  protected onModelStateChanged(sender: OutputAreaModel, args: ObservableVector.IChangedArgs<nbformat.IOutput>) {
     switch (args.type) {
     case 'add':
       // Children are always added at the end.
       this.addChild();
       break;
-    case 'replace':
+    case 'remove':
       // Only "clear" is supported by the model.
       // When an output area is cleared and then quickly replaced with new
       // content (as happens with @interact in widgets, for example), the
@@ -385,11 +374,9 @@ class OutputAreaWidget extends Widget {
         }
         this.node.style.minHeight = '';
       }, 50);
-
-      let oldValues = args.oldValue as nbformat.IOutput[];
-      for (let i = args.oldIndex; i < oldValues.length; i++) {
+      each(args.oldValues, value => {
         this.removeChild(args.oldIndex);
-      }
+      });
       break;
     case 'set':
       if (!this._injecting) {
@@ -819,8 +806,8 @@ class OutputWidget extends Widget {
    *
    * @returns - A mime bundle for the payload.
    */
-  protected getBundle(output: nbformat.IOutput): nbformat.MimeBundle {
-    let bundle: nbformat.MimeBundle;
+  protected getBundle(output: nbformat.IOutput): nbformat.IMimeBundle {
+    let bundle: nbformat.IMimeBundle;
     switch (output.output_type) {
     case 'execute_result':
       bundle = (output as nbformat.IExecuteResult).data;
@@ -851,7 +838,7 @@ class OutputWidget extends Widget {
   /**
    * Convert a mime bundle to a mime map.
    */
-  protected convertBundle(bundle: nbformat.MimeBundle): RenderMime.MimeMap<string> {
+  protected convertBundle(bundle: nbformat.IMimeBundle): RenderMime.MimeMap<string> {
     let map: RenderMime.MimeMap<string> = Object.create(null);
     for (let mimeType in bundle) {
       let value = bundle[mimeType];
@@ -969,7 +956,7 @@ namespace OutputWidget {
     this._input.removeEventListener('keydown', this);
   }
 
-  private _kernel: IKernel = null;
+  private _kernel: Kernel.IKernel = null;
   private _input: HTMLInputElement = null;
 }
 

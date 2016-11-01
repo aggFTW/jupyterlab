@@ -4,8 +4,8 @@
 import expect = require('expect.js');
 
 import {
-  KernelMessage, IKernel, Kernel
-} from 'jupyter-js-services';
+  KernelMessage, Kernel
+} from '@jupyterlab/services';
 
 import {
   ConsoleHistory
@@ -30,6 +30,7 @@ const mockHistory: KernelMessage.IHistoryReplyMsg = {
 
 
 class TestHistory extends ConsoleHistory {
+
   onHistory(value: KernelMessage.IHistoryReplyMsg): void {
     super.onHistory(value);
   }
@@ -41,7 +42,7 @@ const kernelPromise = Kernel.startNew();
 
 describe('console/history', () => {
 
-  let kernel: IKernel;
+  let kernel: Kernel.IKernel;
 
   beforeEach((done) => {
     kernelPromise.then(k => {

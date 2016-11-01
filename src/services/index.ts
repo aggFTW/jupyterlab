@@ -2,8 +2,8 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IServiceManager as IBaseServiceManager
-} from 'jupyter-js-services';
+  ServiceManager
+} from '@jupyterlab/services';
 
 import {
   Token
@@ -23,4 +23,4 @@ const IServiceManager = new Token<IServiceManager>('jupyter.services.services');
  * The service manager interface.
  */
 export
-interface IServiceManager extends IBaseServiceManager { };
+interface IServiceManager extends ServiceManager.IManager { };

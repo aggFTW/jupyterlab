@@ -7,7 +7,7 @@ Please take a look at the Contributor documentation, familiarize yourself with
 using the Jupyter Notebook, and introduce yourself on the mailing list and share
 what area of the project you are interested in working on.
 
-We have labeled some issues as [sprint friendly](https://github.com/jupyter/jupyterlab/issues?q=is%3Aopen+is%3Aissue+label%3Asprint-friendly) 
+We have labeled some issues as [sprint friendly](https://github.com/jupyterlab/jupyterlab/issues?q=is%3Aopen+is%3Aissue+label%3Asprint-friendly) 
 that we believe are good examples of small, self contained changes.  
 We encourage those that are new to the code base to implement and/or ask 
 questions about these issues.
@@ -18,7 +18,7 @@ questions about these issues.
 For general documentation about contributing to Jupyter projects, see the
 [Project Jupyter Contributor Documentation](https://jupyter.readthedocs.io/en/latest/contributor/content-contributor.html).
 
-All source code is written in [TypeScript](http://www.typescriptlang.org/Handbook). See the [Style Guide](https://github.com/jupyter/jupyterlab/wiki/TypeScript-Style-Guide).
+All source code is written in [TypeScript](http://www.typescriptlang.org/Handbook). See the [Style Guide](https://github.com/jupyterlab/jupyterlab/wiki/TypeScript-Style-Guide).
 
 
 ## Setting Up a Development Environment
@@ -62,7 +62,13 @@ If you use ``conda``, you can install it as:
 conda install notebook
 ```
 
-If you use ``pip``` you can install it as:
+You may also want to install `nb_conda_kernels` to have a kernel option for different [conda environments](http://conda.pydata.org/docs/using/envs.html)
+
+```bash
+conda install nb_conda_kernels
+```
+
+If you use `pip` you can install it as:
 
 ```bash
 pip install notebook
@@ -76,8 +82,6 @@ steps::
     npm install
     pip install -e . # will take a long time to build everything
     jupyter serverextension enable --py jupyterlab
-
-
 
 Note: At times, it may be necessary to clean your local repo with the 
 command ``git clean -fdx``.
@@ -154,7 +158,7 @@ npm install --save jupyterlab
 ### Build the NPM Package from Source
 
 ```bash
-git clone https://github.com/jupyter/jupyterlab.git
+git clone https://github.com/jupyterlab/jupyterlab.git
 cd jupyterlab
 npm install
 npm run build:all

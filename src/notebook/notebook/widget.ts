@@ -2,16 +2,28 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  KernelMessage
-} from 'jupyter-js-services';
+  nbformat
+} from '@jupyterlab/services';
 
 import {
-  find
+  each, enumerate
+} from 'phosphor/lib/algorithm/iteration';
+
+import {
+  find, findIndex, indexOf
 } from 'phosphor/lib/algorithm/searching';
+
+import {
+  ISequence
+} from 'phosphor/lib/algorithm/sequence';
 
 import {
   Message
 } from 'phosphor/lib/core/messaging';
+
+import {
+  MimeData
+} from 'phosphor/lib/core/mimedata';
 
 import {
   AttachedProperty
@@ -20,6 +32,10 @@ import {
 import {
   defineSignal, ISignal
 } from 'phosphor/lib/core/signaling';
+
+import {
+  Drag, IDragEvent
+} from 'phosphor/lib/dom/dragdrop';
 
 import {
   scrollIntoViewIfNeeded
@@ -38,8 +54,8 @@ import {
 } from '../../common/interfaces';
 
 import {
-  IObservableList, IListChangedArgs
-} from '../../common/observablelist';
+  IObservableVector, ObservableVector
+} from '../../common/observablevector';
 
 import {
   InspectionHandler
@@ -57,20 +73,12 @@ import {
 } from '../cells';
 
 import {
-  mimetypeForLanguage
-} from '../common/mimetype';
-
-import {
   EdgeLocation
 } from '../cells/editor';
 
 import {
   INotebookModel
 } from './model';
-
-import {
-  nbformat
-} from './nbformat';
 
 
 /**
@@ -113,6 +121,36 @@ const OTHER_SELECTED_CLASS = 'jp-mod-multiSelected';
  */
 const UNCONFINED_CLASS = 'jp-mod-unconfined';
 
+/**
+ * The class name added to a drop target.
+ */
+const DROP_TARGET_CLASS = 'jp-mod-dropTarget';
+
+/**
+ * The class name added to a drop source.
+ */
+const DROP_SOURCE_CLASS = 'jp-mod-dropSource';
+
+/**
+ * The class name added to drag images.
+ */
+const DRAG_IMAGE_CLASS = 'jp-dragImage';
+
+/**
+ * The class name added to a filled circle.
+ */
+const FILLED_CIRCLE_CLASS = 'jp-filledCircle';
+
+/**
+ * The mimetype used for Jupyter cell data.
+ */
+export
+const JUPYTER_CELL_MIME = 'application/vnd.jupyter.cells';
+
+/**
+ * The threshold in pixels to start a drag event.
+ */
+const DRAG_THRESHOLD = 5;
 
 /**
  * The interactivity modes for the notebook.
@@ -146,7 +184,7 @@ class StaticNotebook extends Widget {
   /**
    * A signal emitted when the model of the notebook changes.
    */
-  modelChanged: ISignal<StaticNotebook, void>;
+  modelChanged: ISignal<this, void>;
 
   /**
    * A signal emitted when the model content changes.
@@ -154,7 +192,7 @@ class StaticNotebook extends Widget {
    * #### Notes
    * This is a convenience signal that follows the current model.
    */
-  modelContentChanged: ISignal<StaticNotebook, void>;
+  modelContentChanged: ISignal<this, void>;
 
   /**
    * The model for the widget.
@@ -177,9 +215,6 @@ class StaticNotebook extends Widget {
 
   /**
    * Get the rendermime instance used by the widget.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get rendermime(): RenderMime {
     return this._rendermime;
@@ -187,9 +222,6 @@ class StaticNotebook extends Widget {
 
   /**
    * Get the renderer used by the widget.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get renderer(): StaticNotebook.IRenderer {
     return this._renderer;
@@ -197,28 +229,16 @@ class StaticNotebook extends Widget {
 
   /**
    * Get the mimetype for code cells.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get codeMimetype(): string {
     return this._mimetype;
   }
 
   /**
-   * Get the child widget at the specified index.
+   * A read-only sequence of the widgets in the notebook.
    */
-  childAt(index: number): BaseCellWidget {
-    let layout = this.layout as PanelLayout;
-    return layout.widgets.at(index) as BaseCellWidget;
-  }
-
-  /**
-   * Get the number of child widgets.
-   */
-  childCount(): number {
-    let layout = this.layout as PanelLayout;
-    return layout.widgets.length;
+  get widgets(): ISequence<BaseCellWidget> {
+    return (this.layout as PanelLayout).widgets as ISequence<BaseCellWidget>;
   }
 
   /**
@@ -267,7 +287,7 @@ class StaticNotebook extends Widget {
   protected onMetadataChanged(model: INotebookModel, args: IChangedArgs<any>): void {
     switch (args.name) {
     case 'language_info':
-      this._mimetype = this._renderer.getCodeMimetype(model);
+      this._updateMimetype();
       this._updateCells();
       break;
     default:
@@ -320,11 +340,11 @@ class StaticNotebook extends Widget {
       this._mimetype = 'text/plain';
       return;
     }
-    this._mimetype = this._renderer.getCodeMimetype(newValue);
+    this._updateMimetype();
     let cells = newValue.cells;
-    for (let i = 0; i < cells.length; i++) {
-      this._insertCell(i, cells.get(i));
-    }
+    each(enumerate(cells), ([i, cell]) => {
+      this._insertCell(i, cell);
+    });
     cells.changed.connect(this._onCellsChanged, this);
     newValue.contentChanged.connect(this.onModelContentChanged, this);
     newValue.metadataChanged.connect(this.onMetadataChanged, this);
@@ -333,32 +353,31 @@ class StaticNotebook extends Widget {
   /**
    * Handle a change cells event.
    */
-  private _onCellsChanged(sender: IObservableList<ICellModel>, args: IListChangedArgs<ICellModel>) {
+  private _onCellsChanged(sender: IObservableVector<ICellModel>, args: ObservableVector.IChangedArgs<ICellModel>) {
+    let index = 0;
     switch (args.type) {
     case 'add':
-      this._insertCell(args.newIndex, args.newValue as ICellModel);
+      index = args.newIndex;
+      each(args.newValues, value => {
+        this._insertCell(index++, value);
+      });
       break;
     case 'move':
       this._moveCell(args.newIndex, args.oldIndex);
       break;
     case 'remove':
-      this._removeCell(args.oldIndex);
-      break;
-    case 'replace':
-      // TODO: reuse existing cell widgets if possible.
-      let oldValues = args.oldValue as ICellModel[];
-      for (let i = 0; i < oldValues.length; i++) {
+      each(args.oldValues, value => {
         this._removeCell(args.oldIndex);
-      }
-      let newValues = args.newValue as ICellModel[];
-      for (let i = newValues.length; i > 0; i--) {
-        this._insertCell(args.newIndex, newValues[i - 1]);
-      }
+      });
       break;
     case 'set':
-      // TODO: reuse existing widget if possible.
-      this._removeCell(args.newIndex);
-      this._insertCell(args.newIndex, args.newValue as ICellModel);
+      // TODO: reuse existing widgets if possible.
+      index = args.newIndex;
+      each(args.newValues, value => {
+        this._removeCell(index);
+        this._insertCell(index, value);
+        index++;
+      });
       break;
     default:
       return;
@@ -411,10 +430,9 @@ class StaticNotebook extends Widget {
    * Update the cell widgets.
    */
   private _updateCells(): void {
-    let layout = this.layout as PanelLayout;
-    for (let i = 0; i < layout.widgets.length; i++) {
+    each(enumerate(this.widgets), ([i, widget]) => {
       this._updateCell(i);
-    }
+    });
   }
 
   /**
@@ -427,6 +445,15 @@ class StaticNotebook extends Widget {
       child.mimetype = this._mimetype;
     }
     this._renderer.updateCell(child);
+  }
+
+  /**
+   * Update the mimetype of the notebook.
+   */
+  private _updateMimetype(): void {
+    let cursor = this._model.getMetadata('language_info');
+    let info = cursor.getValue() as nbformat.ILanguageInfoMetadata;
+    this._mimetype = this._renderer.getCodeMimetype(info);
   }
 
   private _mimetype = 'text/plain';
@@ -495,12 +522,9 @@ namespace StaticNotebook {
     updateCell(cell: BaseCellWidget): void;
 
     /**
-     * Get the preferred mime type for code cells in the notebook.
-     *
-     * #### Notes
-     * The model is guaranteed to be non-null.
+     * Get the preferred mimetype given language info.
      */
-    getCodeMimetype(model: INotebookModel): string;
+    getCodeMimetype(info: nbformat.ILanguageInfoMetadata): string;
   }
 
   /**
@@ -534,16 +558,9 @@ namespace StaticNotebook {
     }
 
     /**
-     * Get the preferred mimetype for code cells in the notebook.
-     *
-     * #### Notes
-     * The model is guaranteed to be non-null.
+     * Get the preferred mimetype given language info.
      */
-    getCodeMimetype(model: INotebookModel): string {
-      let cursor = model.getMetadata('language_info');
-      let info = cursor.getValue() as nbformat.ILanguageInfoMetadata;
-      return mimetypeForLanguage(info as KernelMessage.ILanguageInfo);
-    }
+    abstract getCodeMimetype(info: nbformat.ILanguageInfoMetadata): string;
   }
 }
 
@@ -560,7 +577,9 @@ class Notebook extends StaticNotebook {
     super(options);
     this.node.tabIndex = -1;  // Allow the widget to take focus.
     // Set up the inspection handler.
-    this._inspectionHandler = new InspectionHandler(this.rendermime);
+    this._inspectionHandler = new InspectionHandler({
+      rendermime: this.rendermime
+    });
     this.activeCellChanged.connect((s, cell) => {
       this._inspectionHandler.activeCell = cell;
     });
@@ -573,23 +592,20 @@ class Notebook extends StaticNotebook {
    * This can be due to the active index changing or the
    * cell at the active index changing.
    */
-  activeCellChanged: ISignal<Notebook, BaseCellWidget>;
+  activeCellChanged: ISignal<this, BaseCellWidget>;
 
   /**
    * A signal emitted when the state of the notebook changes.
    */
-  stateChanged: ISignal<Notebook, IChangedArgs<any>>;
+  stateChanged: ISignal<this, IChangedArgs<any>>;
 
   /**
    * A signal emitted when the selection state of the notebook changes.
    */
-  selectionChanged: ISignal<Notebook, void>;
+  selectionChanged: ISignal<this, void>;
 
   /**
    * Get the inspection handler used by the console.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get inspectionHandler(): InspectionHandler {
     return this._inspectionHandler;
@@ -616,11 +632,7 @@ class Notebook extends StaticNotebook {
     }
     // Edit mode deselects all cells.
     if (newValue === 'edit') {
-      let layout = this.layout as PanelLayout;
-      for (let i = 0; i < layout.widgets.length; i++) {
-        let widget = layout.widgets.at(i) as BaseCellWidget;
-        this.deselect(widget);
-      }
+      each(this.widgets, widget => { this.deselect(widget); });
       if (activeCell instanceof MarkdownCellWidget) {
         activeCell.rendered = false;
       }
@@ -650,7 +662,7 @@ class Notebook extends StaticNotebook {
       newValue = Math.min(newValue, this.model.cells.length - 1);
     }
     this._activeCellIndex = newValue;
-    let cell = this.childAt(newValue);
+    let cell = this.widgets.at(newValue);
     if (cell !== this._activeCell) {
       this._activeCell = cell;
       this.activeCellChanged.emit(cell);
@@ -666,9 +678,6 @@ class Notebook extends StaticNotebook {
 
   /**
    * Get the active cell widget.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get activeCell(): BaseCellWidget {
     return this._activeCell;
@@ -730,9 +739,27 @@ class Notebook extends StaticNotebook {
   }
 
   /**
+   * Deselect all of the cells.
+   */
+  deselectAll(): void {
+    let changed = false;
+    each(this.widgets, widget => {
+      if (Private.selectedProperty.get(widget)) {
+        changed = true;
+      }
+      Private.selectedProperty.set(widget, false);
+    });
+    if (changed) {
+      this.selectionChanged.emit(void 0);
+    }
+    // Make sure we have a valid active cell.
+    this.activeCellIndex = this.activeCellIndex;
+  }
+
+  /**
    * Scroll so that the active cell is visible.
    */
-  scrollToActiveCell() {
+  scrollToActiveCell(): void {
     if (this.activeCell) {
       scrollIntoViewIfNeeded(this.node, this.activeCell.node);
     }
@@ -745,7 +772,7 @@ class Notebook extends StaticNotebook {
    *
    * #### Notes
    * This method implements the DOM `EventListener` interface and is
-   * called in response to events on the dock panel's node. It should
+   * called in response to events on the notebook panel's node. It should
    * not be called directly by user code.
    */
   handleEvent(event: Event): void {
@@ -756,11 +783,32 @@ class Notebook extends StaticNotebook {
     case 'mousedown':
       this._evtMouseDown(event as MouseEvent);
       break;
+    case 'mouseup':
+      this._evtMouseup(event as MouseEvent);
+      break;
+    case 'mousemove':
+      this._evtMousemove(event as MouseEvent);
+      break;
     case 'dblclick':
       this._evtDblClick(event as MouseEvent);
       break;
     case 'focus':
       this._evtFocus(event as MouseEvent);
+      break;
+    case 'blur':
+      this._evtBlur(event as MouseEvent);
+      break;
+    case 'p-dragenter':
+      this._evtDragEnter(event as IDragEvent);
+      break;
+    case 'p-dragleave':
+      this._evtDragLeave(event as IDragEvent);
+      break;
+    case 'p-dragover':
+      this._evtDragOver(event as IDragEvent);
+      break;
+    case 'p-drop':
+      this._evtDrop(event as IDragEvent);
       break;
     default:
       break;
@@ -772,18 +820,32 @@ class Notebook extends StaticNotebook {
    */
   protected onAfterAttach(msg: Message): void {
     super.onAfterAttach(msg);
-    this.node.addEventListener('mousedown', this);
-    this.node.addEventListener('dblclick', this);
-    this.node.addEventListener('focus', this, true);
+    let node = this.node;
+    node.addEventListener('mousedown', this);
+    node.addEventListener('dblclick', this);
+    node.addEventListener('focus', this, true);
+    node.addEventListener('blur', this, true);
+    node.addEventListener('p-dragenter', this);
+    node.addEventListener('p-dragleave', this);
+    node.addEventListener('p-dragover', this);
+    node.addEventListener('p-drop', this);
   }
 
   /**
    * Handle `before_detach` messages for the widget.
    */
   protected onBeforeDetach(msg: Message): void {
-    this.node.removeEventListener('mousedown', this);
-    this.node.removeEventListener('dblclick', this);
-    this.node.removeEventListener('focus', this, true);
+    let node = this.node;
+    node.removeEventListener('mousedown', this);
+    node.removeEventListener('dblclick', this);
+    node.removeEventListener('focus', this, true);
+    node.removeEventListener('blur', this, true);
+    node.removeEventListener('p-dragenter', this);
+    node.removeEventListener('p-dragleave', this);
+    node.removeEventListener('p-dragover', this);
+    node.removeEventListener('p-drop', this);
+    document.removeEventListener('mousemove', this, true);
+    document.removeEventListener('mouseup', this, true);
   }
 
   /**
@@ -791,13 +853,6 @@ class Notebook extends StaticNotebook {
    */
   protected onActivateRequest(msg: Message): void {
     this.node.focus();
-  }
-
-  /**
-   * Handle `'deactivate-request'` messages.
-   */
-  protected onDeactivateRequest(msg: Message): void {
-    this.mode = 'command';
   }
 
   /**
@@ -834,10 +889,8 @@ class Notebook extends StaticNotebook {
     }
 
     let count = 0;
-    let layout = this.layout as PanelLayout;
-    for (let i = 0; i < layout.widgets.length; i++) {
-      let widget = layout.widgets.at(i) as BaseCellWidget;
-      if (i !== this.activeCellIndex) {
+    each(this.widgets, widget => {
+      if (widget !== activeCell) {
         widget.removeClass(ACTIVE_CLASS);
       }
       widget.removeClass(OTHER_SELECTED_CLASS);
@@ -847,7 +900,7 @@ class Notebook extends StaticNotebook {
       } else {
         widget.removeClass(SELECTED_CLASS);
       }
-    }
+    });
     if (count > 1) {
       activeCell.addClass(OTHER_SELECTED_CLASS);
     }
@@ -921,13 +974,11 @@ class Notebook extends StaticNotebook {
   private _findCell(node: HTMLElement): number {
     // Trace up the DOM hierarchy to find the root cell node.
     // Then find the corresponding child and select it.
-    let layout = this.layout as PanelLayout;
     while (node && node !== this.node) {
       if (node.classList.contains(NB_CELL_CLASS)) {
-        for (let i = 0; i < layout.widgets.length; i++) {
-          if (layout.widgets.at(i).node === node) {
-            return i;
-          }
+        let i = findIndex(this.widgets, widget => widget.node === node);
+        if (i !== -1) {
+          return i;
         }
         break;
       }
@@ -942,16 +993,225 @@ class Notebook extends StaticNotebook {
   private _evtMouseDown(event: MouseEvent): void {
     let target = event.target as HTMLElement;
     let i = this._findCell(target);
+    let shouldDrag = false;
+
     if (i !== -1) {
-      let widget = this.childAt(i);
+      let widget = this.widgets.at(i);
       // Event is on a cell but not in its editor, switch to command mode.
       if (!widget.editor.node.contains(target)) {
         this.mode = 'command';
+        shouldDrag = widget.promptNode.contains(target);
+      }
+      if (event.shiftKey) {
+        shouldDrag = false;
+        this._extendSelectionTo(i);
+
+        // Prevent text select behavior.
+        event.preventDefault();
+        event.stopPropagation();
+      } else {
+        if (!this.isSelected(widget)) {
+          this.deselectAll();
+        }
       }
       // Set the cell as the active one.
       // This must be done *after* setting the mode above.
       this.activeCellIndex = i;
     }
+
+    // Left mouse press for drag start.
+    if (event.button === 0 && shouldDrag) {
+      this._dragData = { pressX: event.clientX, pressY: event.clientY, index: i};
+      document.addEventListener('mouseup', this, true);
+      document.addEventListener('mousemove', this, true);
+    }
+  }
+
+
+  /**
+   * Handle the `'mouseup'` event for the widget.
+   */
+  private _evtMouseup(event: MouseEvent): void {
+    if (event.button !== 0 || !this._drag) {
+      document.removeEventListener('mousemove', this, true);
+      document.removeEventListener('mouseup', this, true);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  /**
+   * Handle the `'mousemove'` event for the widget.
+   */
+  private _evtMousemove(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Bail if we are the one dragging.
+    if (this._drag) {
+      return;
+    }
+
+    // Check for a drag initialization.
+    let data = this._dragData;
+    let dx = Math.abs(event.clientX - data.pressX);
+    let dy = Math.abs(event.clientY - data.pressY);
+    if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) {
+      return;
+    }
+
+    this._startDrag(data.index, event.clientX, event.clientY);
+  }
+
+  /**
+   * Handle the `'p-dragenter'` event for the widget.
+   */
+  private _evtDragEnter(event: IDragEvent): void {
+    if (!event.mimeData.hasData(JUPYTER_CELL_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    let index = this._findCell(event.target as HTMLElement);
+    if (index === -1) {
+      return;
+    }
+    let target = (this.layout as PanelLayout).widgets.at(index);
+    target.node.classList.add(DROP_TARGET_CLASS);
+  }
+
+  /**
+   * Handle the `'p-dragleave'` event for the widget.
+   */
+  private _evtDragLeave(event: IDragEvent): void {
+    if (!event.mimeData.hasData(JUPYTER_CELL_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    let elements = this.node.getElementsByClassName(DROP_TARGET_CLASS);
+    if (elements.length) {
+      (elements[0] as HTMLElement).classList.remove(DROP_TARGET_CLASS);
+    }
+  }
+
+  /**
+   * Handle the `'p-dragover'` event for the widget.
+   */
+  private _evtDragOver(event: IDragEvent): void {
+    if (!event.mimeData.hasData(JUPYTER_CELL_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.dropAction = event.proposedAction;
+    let elements = this.node.getElementsByClassName(DROP_TARGET_CLASS);
+    if (elements.length) {
+      (elements[0] as HTMLElement).classList.remove(DROP_TARGET_CLASS);
+    }
+    let index = this._findCell(event.target as HTMLElement);
+    if (index === -1) {
+      return;
+    }
+    let target = (this.layout as PanelLayout).widgets.at(index);
+    target.node.classList.add(DROP_TARGET_CLASS);
+  }
+
+  /**
+   * Handle the `'p-drop'` event for the widget.
+   */
+  private _evtDrop(event: IDragEvent): void {
+    if (!event.mimeData.hasData(JUPYTER_CELL_MIME)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.proposedAction === 'none') {
+      event.dropAction = 'none';
+      return;
+    }
+    event.dropAction = event.proposedAction;
+
+    let target = event.target as HTMLElement;
+    while (target && target.parentElement) {
+      if (target.classList.contains(DROP_TARGET_CLASS)) {
+        target.classList.remove(DROP_TARGET_CLASS);
+        break;
+      }
+      target = target.parentElement;
+    }
+
+    // Find the target cell and insert the copied cells.
+    let index = this._findCell(target);
+    let model = this.model;
+    let values = event.mimeData.getData(JUPYTER_CELL_MIME);
+
+    // Insert the copies of the original cells.
+    each(values, (value: nbformat.ICell) => {
+      let cell: ICellModel;
+      switch (value.cell_type) {
+      case 'code':
+        cell = model.factory.createCodeCell(value);
+        break;
+      case 'markdown':
+        cell = model.factory.createMarkdownCell(value);
+        break;
+      default:
+        cell = model.factory.createRawCell(value);
+        break;
+      }
+      model.cells.insert(index, cell);
+    });
+    // Activate the last cell.
+    this.activeCellIndex = index + values.length - 1;
+  }
+
+  /**
+   * Start a drag event.
+   */
+  private _startDrag(index: number, clientX: number, clientY: number): void {
+    let cells = this.model.cells;
+    let selected: nbformat.ICell[] = [];
+    let toremove: BaseCellWidget[] = [];
+
+    each(enumerate(this.widgets), ([i, widget]) => {
+      let cell = cells.at(i);
+      if (this.isSelected(widget)) {
+        widget.addClass(DROP_SOURCE_CLASS);
+        selected.push(cell.toJSON());
+        toremove.push(widget);
+      }
+    });
+
+    // Create the drag image.
+    let dragImage = Private.createDragImage(selected.length);
+
+    // Set up the drag event.
+    this._drag = new Drag({
+      mimeData: new MimeData(),
+      dragImage,
+      supportedActions: 'move',
+      proposedAction: 'move'
+    });
+    this._drag.mimeData.setData(JUPYTER_CELL_MIME, selected);
+
+    // Remove mousemove and mouseup listeners and start the drag.
+    document.removeEventListener('mousemove', this, true);
+    document.removeEventListener('mouseup', this, true);
+    this._drag.start(clientX, clientY).then(action => {
+      this._drag = null;
+      each(toremove, widget => { widget.removeClass(DROP_SOURCE_CLASS); });
+      if (action === 'none') {
+        return;
+      }
+      let activeCell = cells.at(this.activeCellIndex);
+      each(toremove, widget => {
+        this.model.cells.remove(widget.model);
+      });
+      this.activeCellIndex = indexOf(cells, activeCell);
+    });
+
   }
 
   /**
@@ -961,7 +1221,7 @@ class Notebook extends StaticNotebook {
     let target = event.target as HTMLElement;
     let i = this._findCell(target);
     if (i !== -1) {
-      let widget = this.childAt(i);
+      let widget = this.widgets.at(i);
       // If the editor itself does not have focus, ensure command mode.
       if (!widget.editor.node.contains(target)) {
         this.mode = 'command';
@@ -973,6 +1233,16 @@ class Notebook extends StaticNotebook {
       }
     } else {
       // No cell has focus, ensure command mode.
+      this.mode = 'command';
+    }
+  }
+
+  /**
+   * Handle `blur` events for the widget.
+   */
+  private _evtBlur(event: MouseEvent): void {
+    let target = event.relatedTarget as HTMLElement;
+    if (!this.node.contains(target)) {
       this.mode = 'command';
     }
   }
@@ -991,7 +1261,7 @@ class Notebook extends StaticNotebook {
       return;
     }
     let layout = this.layout as PanelLayout;
-    let cell = model.cells.get(i) as MarkdownCellModel;
+    let cell = model.cells.at(i) as MarkdownCellModel;
     let widget = layout.widgets.at(i) as MarkdownCellWidget;
     if (cell.type === 'markdown') {
       widget.rendered = false;
@@ -1002,10 +1272,34 @@ class Notebook extends StaticNotebook {
     }
   }
 
+  /**
+   * Extend the selection to a given index.
+   */
+  private _extendSelectionTo(index: number): void {
+    let activeIndex = this.activeCellIndex;
+    let j = index;
+    // extend the existing selection.
+    if (j > activeIndex) {
+      while (j > activeIndex) {
+        Private.selectedProperty.set(this.widgets.at(j), true);
+        j--;
+      }
+    } else if (j < activeIndex) {
+      while (j < activeIndex) {
+        Private.selectedProperty.set(this.widgets.at(j), true);
+        j++;
+      }
+    }
+    Private.selectedProperty.set(this.widgets.at(activeIndex), true);
+    this.selectionChanged.emit(void 0);
+  }
+
   private _activeCellIndex = -1;
   private _activeCell: BaseCellWidget = null;
   private _inspectionHandler: InspectionHandler = null;
   private _mode: NotebookMode = 'command';
+  private _drag: Drag = null;
+  private _dragData: { pressX: number, pressY: number, index: number } = null;
 }
 
 
@@ -1063,5 +1357,19 @@ namespace Private {
     protected onUpdateRequest(msg: Message): void {
       // This is a no-op.
     }
+  }
+
+  /**
+   * Create a cell drag image.
+   */
+  export
+  function createDragImage(count: number): HTMLElement {
+    let node = document.createElement('div');
+    let span = document.createElement('span');
+    span.textContent = `${count}`;
+    span.className = FILLED_CIRCLE_CLASS;
+    node.appendChild(span);
+    node.className = DRAG_IMAGE_CLASS;
+    return node;
   }
 }

@@ -2,40 +2,6 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  NotebookPanel, NotebookWidgetFactory,
-  NotebookModelFactory, NotebookActions
-} from 'jupyterlab/lib/notebook';
-
-import {
-  CodeMirrorNotebookPanelRenderer
-} from 'jupyterlab/lib/notebook/codemirror/notebook/panel';
-
-import {
-  IServiceManager, ServiceManager, IAjaxSettings, Kernel
-} from 'jupyter-js-services';
-
-import {
-  DocumentManager
-} from 'jupyterlab/lib/docmanager';
-
-import {
-  DocumentRegistry, restartKernel, selectKernelForContext
-} from 'jupyterlab/lib/docregistry';
-
-import {
-  RenderMime
-} from 'jupyterlab/lib/rendermime';
-
-import {
-  HTMLRenderer, LatexRenderer, ImageRenderer, TextRenderer,
-  JavascriptRenderer, SVGRenderer, MarkdownRenderer
-} from 'jupyterlab/lib/renderers';
-
-import {
-  defaultSanitizer
-} from 'jupyterlab/lib/sanitizer';
-
-import {
   MimeData
 } from 'phosphor/lib/core/mimedata';
 
@@ -60,72 +26,57 @@ import {
 } from 'phosphor/lib/ui/widget';
 
 import {
-  IWidgetExtension, IDocumentContext, IDocumentModel, IDocumentRegistry
+  ServiceManager, IAjaxSettings, Kernel
+} from '@jupyterlab/services';
+
+import {
+  NotebookPanel, NotebookWidgetFactory,
+  NotebookModelFactory, NotebookActions
+} from 'jupyterlab/lib/notebook';
+
+import {
+  CodeMirrorNotebookPanelRenderer
+} from 'jupyterlab/lib/notebook/codemirror/notebook/panel';
+
+import {
+  DocumentManager
+} from 'jupyterlab/lib/docmanager';
+
+import {
+  DocumentRegistry, restartKernel, selectKernelForContext, IDocumentRegistry
 } from 'jupyterlab/lib/docregistry';
 
 import {
-  INotebookModel
-} from 'jupyterlab/lib/notebook/notebook/model';
+  RenderMime
+} from 'jupyterlab/lib/rendermime';
+
+import {
+  HTMLRenderer, LatexRenderer, ImageRenderer, TextRenderer,
+  JavascriptRenderer, SVGRenderer, MarkdownRenderer
+} from 'jupyterlab/lib/renderers';
+
+import {
+  defaultSanitizer
+} from 'jupyterlab/lib/sanitizer';
+
+import 'jupyterlab/lib/default-theme/index.css';
+import '../index.css';
+
+// From ipywidgets!
 
 import {
   JupyterLabPlugin, JupyterLab
 } from 'jupyterlab/lib/application';
 
 import {
-  IKernel
-} from 'jupyter-js-services';
-
-import {
-  IDisposable, DisposableDelegate
-} from 'phosphor/lib/core/disposable';
-
-import {
-  Token
-} from 'phosphor/lib/core/token';
-
-import {
-  WidgetManager, WidgetRenderer
+  INBWidgetExtension
 } from '@jupyterlab/nbwidgets';
 
-import 'jupyterlab/lib/default-theme/index.css';
-import '../index.css';
+import {
+  NBWidgetExtension
+} from '@jupyterlab/nbwidgets/lib/plugin';
 
-const WIDGET_MIMETYPE = 'application/vnd.jupyter.widget';
-
-export
-const IIPyWidgetExtension = new Token<IIPyWidgetExtension>('jupyter.extensions.widgetManager');
-
-export
-interface IIPyWidgetExtension extends IPyWidgetExtension {};
-
-export
-class IPyWidgetExtension implements IWidgetExtension<NotebookPanel, INotebookModel> {
-  /**
-   * Create a new extension object.
-   */
-  createNew(nb: NotebookPanel, context: IDocumentContext<INotebookModel>): IDisposable {
-    let wManager = new WidgetManager(context, nb.content.rendermime);
-    this._registry.forEach(data => wManager.register(data));
-    let wRenderer = new WidgetRenderer(wManager);
-
-    nb.content.rendermime.addRenderer(WIDGET_MIMETYPE, wRenderer, 0);
-    return new DisposableDelegate(() => {
-      if (nb.rendermime) {
-        nb.rendermime.removeRenderer(WIDGET_MIMETYPE);
-      }
-      wRenderer.dispose();
-      wManager.dispose();
-    });
-  }
-
-  /**
-   * Register a widget module.
-   */
-  registerWidget(data: WidgetManager.IWidgetData) {
-    this._registry.push(data);
-  }
-  private _registry: WidgetManager.IWidgetData[] = [];
-}
+// Service Manager Options
 
 export
 class ServiceManagerOptions implements ServiceManager.IOptions {
@@ -134,11 +85,15 @@ class ServiceManagerOptions implements ServiceManager.IOptions {
   kernelspecs?: Kernel.ISpecModels;
 }
 
+// main
+
 function main(): void {
   console.error("I'm here!");
   let jl = new JupyterLabEmbeddable('jupyter-notebook-wrapper', 'test.ipynb', 'pysparkkernel', undefined, 'http://localhost:8888');
   jl.embedJupyterLabUI();
 }
+
+// Class
 
 export
 class JupyterLabEmbeddable {
@@ -163,9 +118,9 @@ class JupyterLabEmbeddable {
   /**
    * The widget manager provider.
    */
-  private widgetManagerProvider: JupyterLabPlugin<IIPyWidgetExtension> = {
+  private widgetManagerProvider: JupyterLabPlugin<INBWidgetExtension> = {
     id: 'jupyter.extensions.widgetManager',
-    provides: IIPyWidgetExtension,
+    provides: INBWidgetExtension,
     requires: [IDocumentRegistry],
     activate: this.activateWidgetExtension,
     autoStart: true
@@ -203,12 +158,12 @@ class JupyterLabEmbeddable {
    * Activate the widget extension.
    */
   private activateWidgetExtension(app: JupyterLab, registry: IDocumentRegistry) {
-    let extension = new IPyWidgetExtension();
+    let extension = new NBWidgetExtension();
     registry.addWidgetExtension('Notebook', extension);
     return extension;
   }
 
-  private createApp(manager: IServiceManager): void {
+  private createApp(manager: ServiceManager.IManager): void {
     // Initialize the keymap manager with the bindings.
     let commands = new CommandRegistry();
     let keymap = new Keymap({ commands });

@@ -2,16 +2,16 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
+  nbformat
+} from '@jupyterlab/services';
+
+import {
   Widget
 } from 'phosphor/lib/ui/widget';
 
 import {
   NotebookActions
 } from './actions';
-
-import {
-  nbformat
-} from './nbformat';
 
 import {
   NotebookPanel
@@ -185,17 +185,17 @@ namespace ToolbarItems {
   export
   function populateDefaults(panel: NotebookPanel): void {
     let toolbar = panel.toolbar;
-    toolbar.add('save', createSaveButton(panel));
-    toolbar.add('insert', createInsertButton(panel));
-    toolbar.add('cut', createCutButton(panel));
-    toolbar.add('copy', createCopyButton(panel));
-    toolbar.add('paste', createPasteButton(panel));
-    toolbar.add('run', createRunButton(panel));
-    toolbar.add('interrupt', createInterruptButton(panel));
-    toolbar.add('restart', createRestartButton(panel, panel.node));
-    toolbar.add('cellType', createCellTypeItem(panel));
-    toolbar.add('kernelName', createKernelNameItem(panel));
-    toolbar.add('kernelStatus', createKernelStatusItem(panel));
+    toolbar.addItem('save', createSaveButton(panel));
+    toolbar.addItem('insert', createInsertButton(panel));
+    toolbar.addItem('cut', createCutButton(panel));
+    toolbar.addItem('copy', createCopyButton(panel));
+    toolbar.addItem('paste', createPasteButton(panel));
+    toolbar.addItem('run', createRunButton(panel));
+    toolbar.addItem('interrupt', createInterruptButton(panel));
+    toolbar.addItem('restart', createRestartButton(panel, panel.node));
+    toolbar.addItem('cellType', createCellTypeItem(panel));
+    toolbar.addItem('kernelName', createKernelNameItem(panel));
+    toolbar.addItem('kernelStatus', createKernelStatusItem(panel));
   }
 }
 
@@ -251,8 +251,8 @@ class CellTypeSwitcher extends Widget {
       return;
     }
     let mType: string = widget.activeCell.model.type;
-    for (let i = 0; i < widget.childCount(); i++) {
-      let child = widget.childAt(i);
+    for (let i = 0; i < widget.widgets.length; i++) {
+      let child = widget.widgets.at(i);
       if (widget.isSelected(child)) {
         if (child.model.type !== mType) {
           mType = '-';

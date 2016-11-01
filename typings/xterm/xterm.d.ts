@@ -12,36 +12,49 @@ interface Xterm {
 
   element: HTMLElement;
 
-  colors: string[];
+  textarea: HTMLElement;
 
-  rows: number;
+  attachCustomKeydownHandler(callback: (event: KeyboardEvent) => boolean): void;
 
-  cols: number;
+  blur(): void;
 
-  visualBell: boolean;
-
-  popOnBell: boolean;
-
-  scrollback: number;
-
-  on(event: string, callback: (arg: any) => void): void;
-
-  open(el: HTMLElement): void;
-
-  write(msg: string): void;
-
-  resize(width: number, height: number): void;
+  clear(): void;
 
   destroy(): void;
 
   focus(): void;
+
+  setOption(key: 'rows'): number;
+  setOption(key: 'cols'): number;
+  setOption(key: 'cursorBlink'): boolean;
+
+  on(event: string, callback: (arg: any) => void): void;
+
+  off(event: string, callback: (arg: any) => void): void;
+
+  open(parent: HTMLElement): void;
+
+  refresh(start: number, end: number, queue?: boolean): void;
+
+  reset(): void;
+
+  resize(x: number, y: number): void;
+
+  scrollDisp(n: number): void;
+
+  setOption(key: 'rows', value: number): void;
+  setOption(key: 'cols', value: number): void;
+  setOption(key: 'cursorBlink', value: boolean): void;
+
+  write(text: string): void;
+
+  writeln(text: string): void;
 }
 
 
 interface XtermConstructor {
   new (options?: Xterm.IOptions): Xterm;
   (options?: Xterm.IOptions): Xterm;
-  brokenBold: boolean;
 }
 
 
@@ -50,27 +63,12 @@ interface XtermConstructor {
  */
 declare module Xterm {
   interface IOptions {
-    colors?: string[];
-
-    theme?: string;
-
-    convertEol?: boolean;
-
-    termName?: string;
-
-    geometry?: number[];
 
     cursorBlink?: boolean;
 
-    visualBell?: boolean;
+    rows?: number;
 
-    popOnBell?: boolean;
-
-    scrollback?: number;
-
-    debug?: boolean;
-
-    cancelEvents?: boolean;
+    cols?: number;
   }
 }
 

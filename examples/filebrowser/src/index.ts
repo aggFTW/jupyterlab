@@ -2,30 +2,6 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IServiceManager, ServiceManager
-} from 'jupyter-js-services';
-
-import {
-  FileBrowserWidget, FileBrowserModel
-} from 'jupyterlab/lib/filebrowser';
-
-import {
-  DocumentManager
-} from 'jupyterlab/lib/docmanager';
-
-import {
-  DocumentRegistry, TextModelFactory
-} from 'jupyterlab/lib/docregistry';
-
-import {
-  EditorWidgetFactory
-} from 'jupyterlab/lib/editorwidget/widget';
-
-import {
-  showDialog, okButton
-} from 'jupyterlab/lib/dialog';
-
-import {
   CommandRegistry
 } from 'phosphor/lib/ui/commandregistry';
 
@@ -49,6 +25,30 @@ import {
   Widget
 } from 'phosphor/lib/ui/widget';
 
+import {
+  ServiceManager
+} from '@jupyterlab/services';
+
+import {
+  FileBrowser, FileBrowserModel
+} from 'jupyterlab/lib/filebrowser';
+
+import {
+  DocumentManager
+} from 'jupyterlab/lib/docmanager';
+
+import {
+  DocumentRegistry, TextModelFactory
+} from 'jupyterlab/lib/docregistry';
+
+import {
+  EditorWidgetFactory
+} from 'jupyterlab/lib/editorwidget/widget';
+
+import {
+  showDialog, okButton
+} from 'jupyterlab/lib/dialog';
+
 import 'jupyterlab/lib/default-theme/index.css';
 import '../index.css';
 
@@ -60,7 +60,7 @@ function main(): void {
 }
 
 
-function createApp(manager: IServiceManager): void {
+function createApp(manager: ServiceManager.IManager): void {
   let widgets: Widget[] = [];
   let activeWidget: Widget;
 
@@ -86,27 +86,26 @@ function createApp(manager: IServiceManager): void {
     opener
   });
   let mFactory = new TextModelFactory();
-  let wFactory = new EditorWidgetFactory();
-  docRegistry.addModelFactory(mFactory);
-  docRegistry.addWidgetFactory(wFactory, {
-    displayName: 'Editor',
+  let wFactory = new EditorWidgetFactory({
+    name: 'Editor',
     modelName: 'text',
     fileExtensions: ['*'],
     defaultFor: ['*'],
     preferKernel: false,
     canStartKernel: true
   });
+  docRegistry.addModelFactory(mFactory);
+  docRegistry.addWidgetFactory(wFactory);
 
   let commands = new CommandRegistry();
   let keymap = new Keymap({ commands });
 
   let fbModel = new FileBrowserModel({ manager });
-  let fbWidget = new FileBrowserWidget({
+  let fbWidget = new FileBrowser({
     commands,
     keymap,
     model: fbModel,
     manager: docManager,
-    opener
   });
 
   let panel = new SplitPanel();

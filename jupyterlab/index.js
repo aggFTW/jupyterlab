@@ -2,7 +2,7 @@
 // Distributed under the terms of the Modified BSD License.
 
 var JupyterLab = require('../lib/application').JupyterLab;
-var extractPlugins = require('jupyterlab-extension-builder/lib/extract').extractPlugins;
+var extractPlugins = require('@jupyterlab/extension-builder/lib/extract').extractPlugins;
 
 
 // ES6 Promise polyfill
@@ -30,5 +30,6 @@ function getEntryPoint(entryPoint) {
 jupyter.lab = new JupyterLab();
 jupyter.getEntryPoint = getEntryPoint;
 jupyter.version = require('../package.json').version;
+jupyter.gitDescription = process.env.GIT_DESCRIPTION;
 
 module.exports = jupyter.lab;

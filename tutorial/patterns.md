@@ -95,7 +95,39 @@ finished evaluating, resulting in undefined state.
 
 ## Data Structures
 
-Prefer to use Phosphor [Phosphor `Vector`](http://phosphorjs.github.io/phosphor/api/classes/_collections_vector_.vector.html) over JavaScript `Array` for internal use,
-and expose Vectors as ISequences for external use.  This allows us to use
-the Phosphor algorithms which provide advanced functionality over what is
-offered by the native Arrays.
+Prefer to use Phosphor [Phosphor `Vector`](http://phosphorjs.github.io/phosphor/api/classes/_collections_vector_.vector.html) 
+over JavaScript `Array` for internal use for its extra flexibility.
+
+For public API, we have three options: JavaScript `Array`, 
+[Phosphor `IIterator`](http://phosphorjs.github.io/phosphor/api/interfaces/_algorithm_iteration_.iiterable.html), and 
+[Phosphor `ISequence`](http://phosphorjs.github.io/phosphor/api/interfaces/_algorithm_sequence_.isequence.html).
+
+Prefer an `Array` for:
+- A return value is the result of a newly allocated array, to avoid the 
+extra allocation of an iterator.  
+- A signal payload.
+- A public attribute that is inherently static.  Use `.slice()` to
+make sure the internal value cannot be mutated by the consumer.
+
+Prefer an `IIterator` for:
+- A return value where the value is based on an internal `Vector` but the 
+value should not need to be accessed randomly.
+- A set of return values that can be computed lazily.
+
+Prefer an `ISequence` when:
+- A return value or public attribute based on an internal `Vector` where the 
+value may need to be accessed randomly.
+
+## DOM Events
+
+If an object instance should respond to DOM events, create a `handleEvent`
+method for the class and register the object instance as the event handler. The
+`handleEvent` method should switch on the event type and could call private
+methods to carry out the actions. Often a widget class will add itself as an
+event listener to its own node in the `onAfterAttach` method with something like
+`this.node.addEventListener('mousedown', this)` and unregister itself in the
+`onBeforeDetach` method with `this.node.removeEventListener('mousedown', this)`
+Dispatching events from the `handleEvent` method makes it easier to trace, log,
+and debug event handling. For more information about the `handleEvent` method,
+see the [EventListener](https://developer.mozilla.org/en-US/docs/Web/API/EventListener)
+API.

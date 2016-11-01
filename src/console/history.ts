@@ -2,8 +2,8 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
-  IKernel, KernelMessage
-} from 'jupyter-js-services';
+  Kernel, KernelMessage
+} from '@jupyterlab/services';
 
 import {
   Vector
@@ -26,15 +26,12 @@ interface IConsoleHistory extends IDisposable {
   /**
    * The current kernel supplying navigation history.
    */
-  kernel: IKernel;
+  kernel: Kernel.IKernel;
 
   /**
    * The placeholder text that a history session began with.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
-  placeholder: string;
+  readonly placeholder: string;
 
   /**
    * Get the previous item in the console history.
@@ -94,9 +91,6 @@ class ConsoleHistory implements IConsoleHistory {
 
   /**
    * Get whether the console history manager is disposed.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get isDisposed(): boolean {
     return this._history === null;
@@ -105,10 +99,10 @@ class ConsoleHistory implements IConsoleHistory {
   /**
    * The current kernel supplying navigation history.
    */
-  get kernel(): IKernel {
+  get kernel(): Kernel.IKernel {
     return this._kernel;
   }
-  set kernel(newValue: IKernel) {
+  set kernel(newValue: Kernel.IKernel) {
     if (newValue === this._kernel) {
       return;
     }
@@ -125,9 +119,6 @@ class ConsoleHistory implements IConsoleHistory {
 
   /**
    * The placeholder text that a history session began with.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get placeholder(): string {
     return this._placeholder;
@@ -237,7 +228,7 @@ class ConsoleHistory implements IConsoleHistory {
   private _cursor = 0;
   private _hasSession = false;
   private _history: Vector<string> = null;
-  private _kernel: IKernel = null;
+  private _kernel: Kernel.IKernel = null;
   private _placeholder: string = '';
 }
 
@@ -255,7 +246,7 @@ namespace ConsoleHistory {
     /**
      * The kernel instance to query for history.
      */
-    kernel?: IKernel;
+    kernel?: Kernel.IKernel;
   }
 }
 

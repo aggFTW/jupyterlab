@@ -4,6 +4,8 @@
 import * as CodeMirror
   from 'codemirror';
 
+import 'codemirror/mode/meta';
+
 import './codemirror-ipython';
 import './codemirror-ipythongfm';
 
@@ -13,6 +15,10 @@ import 'codemirror/mode/css/css';
 import 'codemirror/mode/julia/julia';
 import 'codemirror/mode/r/r';
 import 'codemirror/mode/markdown/markdown';
+
+
+// Stub for the require function.
+declare var require: any;
 
 
 /**
@@ -43,32 +49,37 @@ function loadModeByName(editor: CodeMirror.Editor, mode: string): void {
 
 
 /**
+ * Find a codemirror mode by name or CodeMirror spec.
+ */
+export
+function findMode(mode: string | CodeMirror.modespec): CodeMirror.modespec {
+  let modename = (typeof mode === 'string') ? mode :
+      mode.mode || mode.name;
+  let mimetype = (typeof mode !== 'string') ? mode.mime : '';
+
+  return (
+    CodeMirror.findModeByName(modename) ||
+    CodeMirror.findModeByMIME(mimetype) ||
+    CodeMirror.modes['null']
+  );
+}
+
+
+/**
  * Require a codemirror mode by name or Codemirror spec.
  */
 export
 function requireMode(mode: string | CodeMirror.modespec): Promise<CodeMirror.modespec> {
-  let modename = (typeof mode === 'string') ? mode :
-      mode.mode || mode.name;
-  let mimetype = (typeof mode !== 'string') ? mode.mime : '';
-  let ext = modename.split('.').pop();
-
-  // Get a modespec object by whatever means necessary.
-  let info: CodeMirror.modespec = (
-      (modename && mimetype && mode as CodeMirror.modespec) ||
-      CodeMirror.findModeByName(modename) ||
-      CodeMirror.findModeByExtension(ext) ||
-      CodeMirror.findModeByMIME(modename) ||
-      {mode: modename, mime: modename}
-  );
+  let info = findMode(mode);
 
   // Simplest, cheapest check by mode name.
-  if (CodeMirror.modes.hasOwnProperty(modename)) {
+  if (CodeMirror.modes.hasOwnProperty(info.mode)) {
     return Promise.resolve(info);
   }
 
   // Fetch the mode asynchronously.
   return new Promise<CodeMirror.modespec>((resolve, reject) => {
-    (require as any)([`codemirror/mode/${info.mode}/${info.mode}`], () => {
+    require([`codemirror/mode/${info.mode}/${info.mode}`], () => {
       resolve(info);
     });
   });

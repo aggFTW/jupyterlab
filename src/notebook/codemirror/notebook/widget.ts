@@ -2,6 +2,10 @@
 // Distributed under the terms of the Modified BSD License.
 
 import {
+  nbformat
+} from '@jupyterlab/services';
+
+import {
   RenderMime
 } from '../../../rendermime';
 
@@ -12,6 +16,10 @@ import {
 import {
   CodeCellWidget, MarkdownCellWidget, RawCellWidget
 } from '../../cells/widget';
+
+import {
+  mimetypeForLanguage
+  } from '../../common/mimetype';
 
 import {
   Notebook
@@ -60,6 +68,13 @@ class CodeMirrorNotebookRenderer extends Notebook.Renderer {
     });
     widget.model = model;
     return widget;
+  }
+
+  /**
+   * Get the preferred mimetype given language info.
+   */
+  getCodeMimetype(info: nbformat.ILanguageInfoMetadata): string {
+    return mimetypeForLanguage(info);
   }
 }
 

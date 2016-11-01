@@ -3,10 +3,10 @@
 
 import {
   Contents
-} from 'jupyter-js-services';
+} from '@jupyterlab/services';
 
 import {
-  IModelFactory
+  DocumentRegistry
 } from '../../docregistry';
 
 import {
@@ -18,12 +18,9 @@ import {
  * A model factory for notebooks.
  */
 export
-class NotebookModelFactory implements IModelFactory<INotebookModel> {
+class NotebookModelFactory implements DocumentRegistry.IModelFactory<INotebookModel> {
   /**
    * The name of the model.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get name(): string {
     return 'notebook';
@@ -31,9 +28,6 @@ class NotebookModelFactory implements IModelFactory<INotebookModel> {
 
   /**
    * The content type of the file.
-   *
-   * #### Notes
-   * This is a read-only property.
    */
   get contentType(): Contents.ContentType {
     return 'notebook';
@@ -41,8 +35,6 @@ class NotebookModelFactory implements IModelFactory<INotebookModel> {
 
   /**
    * The format of the file.
-   *
-   * This is a read-only property.
    */
   get fileFormat(): Contents.FileFormat {
     return 'json';
