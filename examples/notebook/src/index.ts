@@ -85,7 +85,7 @@ import {
 
 import {
   WidgetManager, WidgetRenderer
-} from 'jupyterlab_widgets';
+} from '@jupyterlab/nbwidgets';
 
 import 'jupyterlab/lib/default-theme/index.css';
 import '../index.css';
@@ -135,7 +135,8 @@ class ServiceManagerOptions implements ServiceManager.IOptions {
 }
 
 function main(): void {
-  let jl = new JupyterLabEmbeddable('jupyter-notebook-wrapper', 'test.ipynb', undefined, undefined, 'http://localhost:8888');
+  console.error("I'm here!");
+  let jl = new JupyterLabEmbeddable('jupyter-notebook-wrapper', 'test.ipynb', 'pysparkkernel', undefined, 'http://localhost:8888');
   jl.embedJupyterLabUI();
 }
 
@@ -456,4 +457,4 @@ class JupyterLabEmbeddable {
   }
 }
 
-//window.onload = main;
+window.onload = main;
