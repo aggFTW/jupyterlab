@@ -87,11 +87,11 @@ class ServiceManagerOptions implements ServiceManager.IOptions {
 
 // main
 
-function main(): void {
-  console.error("I'm here!");
-  let jl = new JupyterLabEmbeddable('jupyter-notebook-wrapper', 'test.ipynb', 'pysparkkernel', undefined, 'http://localhost:8888');
-  jl.embedJupyterLabUI();
-}
+// function main(): void {
+//   console.error("I'm here!");
+//   let jl = new JupyterLabEmbeddable('jupyter-notebook-wrapper', 'test.ipynb', 'pysparkkernel', undefined, 'http://localhost:8888');
+//   jl.embedJupyterLabUI();
+// }
 
 // Class
 
@@ -149,7 +149,7 @@ class JupyterLabEmbeddable {
   };
 
   public embedJupyterLabUI(): void {
-    ServiceManager.create(this.serviceManagerOptions).then(manager => {
+    ServiceManager.create().then(manager => {
       this.createApp(manager);
     });
   }
@@ -209,16 +209,17 @@ class JupyterLabEmbeddable {
     let mFactory = new NotebookModelFactory();
     let clipboard = new MimeData();
     let renderer = CodeMirrorNotebookPanelRenderer.defaultRenderer;
-    let wFactory = new NotebookWidgetFactory(rendermime, clipboard, renderer);
-    docRegistry.addModelFactory(mFactory);
-    docRegistry.addWidgetFactory(wFactory, {
-      displayName: 'Notebook',
+    let wFactory = new NotebookWidgetFactory({
+      name: 'Notebook',
       modelName: 'notebook',
       fileExtensions: ['.ipynb'],
       defaultFor: ['.ipynb'],
       preferKernel: true,
-      canStartKernel: true
+      canStartKernel: true,
+      rendermime, clipboard, renderer
     });
+    docRegistry.addModelFactory(mFactory);
+    docRegistry.addWidgetFactory(wFactory);
 
     this.activateWidgetExtension(null, docRegistry);
 
@@ -412,4 +413,4 @@ class JupyterLabEmbeddable {
   }
 }
 
-window.onload = main;
+// window.onload = main;
